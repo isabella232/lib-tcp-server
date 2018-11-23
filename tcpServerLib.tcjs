@@ -1,3 +1,7 @@
+/*
+ *   Converted from: platform:/resource/LibTcpServer/Default Transform Configuration.tc
+ */
+
 let tc = TCF.define(TCF.CPP_TRANSFORM);
 tc.sources = [
     'platform:/resource/LibTcpServer/LibTCPServer.emx#_n2OxwO5SEeitL-zKjjNp2A'
@@ -6,12 +10,13 @@ tc.createTargetProject = true;
 tc.targetProject = '/LibTCPServer_target';
 tc.type = CppTransformType.Library;
 tc.compilationMakeType = MakeType.MS_nmake;
+tc.compileArguments = '$(DEBUG_TAG)';
 tc.inclusionPaths = [
     'D:\\github\\poco\\Net\\include',
     'D:\\github\\poco\\JSON\\include',
     'D:\\github\\poco\\Foundation\\include'
 ];
 tc.supportForFileArtifacts = false;
-tc.targetServicesLibrary = 'D:\\rsarte\\DebugTargetRTS\\TargetRTS';
-tc.compileArguments = '$(DEBUG_TAG)';
 tc.targetConfiguration = 'WinT.x64-VisualC++-15.0';
+tc.targetServicesLibrary = 'D:\\git\\rsarte-target-rts\\rsa_rt\\C++\\TargetRTS';
+tc.unitName = 'UnitName_TCPLib';
