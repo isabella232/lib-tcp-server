@@ -1,5 +1,6 @@
 # lib-tcp-server
-A library for HCL RTist which allows an RTist application to communicate over TCP with another application.
+A library for [HCL RTist](https://www.devops-community.com/realtime-software-tooling-rtist.html) which allows an RTist application to communicate over TCP with another application.
+Note: This library requires RTist 10.3 2018.48 or later.
 
 ## Usage
 This library contains a capsule `TCPServer` which allows an external application communicate with an RTist application over TCP. Create a capsule in your model that inherits from `TCPServer`, and then create a capsule part typed by your capsule. This capsule part (referrred to as the "TCPServer capsule part" below) acts as the connection point to the remote application that your application now can communicate with.
@@ -72,3 +73,4 @@ An array of JSON objects representing the reply messages. There will be one obje
   Data type of the reply event.
   - **_data**:any
   The RTist JSON encoding of the data object sent with the reply event. The type is determined by the "_type" property and can either be a string, a boolean or an integer.
+
