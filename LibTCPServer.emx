@@ -434,9 +434,24 @@ srv->start();&#xD;
 	    }&#xD;
 	    &#xD;
 	    if (cmd == &quot;sendEvent&quot;) {	    &#xD;
+	    	Var var_priority = object->get(&quot;priority&quot;);&#xD;
+	    	string str_priority = &quot;General&quot;;&#xD;
+	    	if (!var_priority.isEmpty())&#xD;
+	    		str_priority = var_priority.convert&lt;string>();&#xD;
+	    			&#xD;
+	    	int priority = General; // Default&#xD;
+	    	if (str_priority == &quot;Panic&quot;)&#xD;
+	    		priority = Panic;&#xD;
+	    	else if (str_priority == &quot;High&quot;)&#xD;
+	    		priority = High;&#xD;
+	    	else if (str_priority == &quot;Low&quot;)&#xD;
+	    		priority = Low;&#xD;
+	    	else if (str_priority == &quot;Background&quot;)&#xD;
+	    		priority = Background;&#xD;
+	    	&#xD;
 			int result = (portIndex == -1) ?&#xD;
-					foundPort->send(foundSignalDescriptor->value, data, foundSignalDescriptor->type, General) :&#xD;
-					foundPort->sendAt(portIndex, foundSignalDescriptor->value, data, foundSignalDescriptor->type, General);&#xD;
+					foundPort->send(foundSignalDescriptor->value, data, foundSignalDescriptor->type, priority) :&#xD;
+					foundPort->sendAt(portIndex, foundSignalDescriptor->value, data, foundSignalDescriptor->type, priority);&#xD;
 			if (result == 0) {&#xD;
 				// Failed to send&#xD;
 				conn->replyStatus(ITCPConnection::Status::Error, context()->strerror());&#xD;
@@ -461,6 +476,11 @@ srv->start();&#xD;
 			for (int i = 0; i &lt; result /* number of replies */; i++) {&#xD;
 				if (i > 0)&#xD;
 					strResult.append(&quot;, &quot;);&#xD;
+				if (!replies[i].isValid()) {&#xD;
+					// Invalid reply.&#xD;
+					strResult.append(&quot;{\&quot;_isValid\&quot; : false}&quot;);&#xD;
+					continue;&#xD;
+				}&#xD;
 				RTDynamicStringOutBuffer buf;			&#xD;
 				RTJsonEncoding coding(&amp;buf);&#xD;
 				coding.put_msg(&amp;replies[i]);&#xD;
@@ -482,6 +502,16 @@ srv->start();&#xD;
 		conn->replyStatus(ITCPConnection::Status::Error, &quot;Unknown command: &quot; + cmd);	&#xD;
 	}</body>
       </ownedBehavior>
+      <ownedBehavior xmi:type="uml:OpaqueBehavior" xmi:id="_29hpUPF5EeiGPObbQ5S9rA" name="unexpectedMessage" specification="_j8WecPF5EeiGPObbQ5S9rA">
+        <language>C++</language>
+        <body>const RTMessage* msg = getMsg();&#xD;
+&#xD;
+RTDynamicStringOutBuffer buf;			&#xD;
+RTJsonEncoding coding(&amp;buf);&#xD;
+coding.put_msg(msg);&#xD;
+cout &lt;&lt; &quot;Out message: &quot; &lt;&lt; buf.getString() &lt;&lt; endl &lt;&lt; flush;&#xD;
+</body>
+      </ownedBehavior>
       <ownedOperation xmi:id="_5rH6Q-5TEeitL-zKjjNp2A" name="onRequestReceived">
         <ownedParameter xmi:id="_5rH6RO5TEeitL-zKjjNp2A" name="return" direction="return">
           <type xmi:type="uml:PrimitiveType" href="platform:/plugin/com.ibm.xtools.umldt.rt.cpp.core/libraries/CppPrimitiveDatatypes.emx#_f0877hKyEdyaM9S2zG4bgA?CppPrimitiveDatatypes/void?"/>
@@ -502,6 +532,7 @@ srv->start();&#xD;
           <type xmi:type="uml:PrimitiveType" href="platform:/plugin/com.ibm.xtools.umldt.rt.cpp.core/libraries/CppPrimitiveDatatypes.emx#_f0877hKyEdyaM9S2zG4bgA?CppPrimitiveDatatypes/void?"/>
         </ownedParameter>
       </ownedOperation>
+      <ownedOperation xmi:id="_j8WecPF5EeiGPObbQ5S9rA" name="unexpectedMessage" method="_29hpUPF5EeiGPObbQ5S9rA"/>
     </packagedElement>
     <packagedElement xmi:type="uml:Class" xmi:id="_5rKWgO5TEeitL-zKjjNp2A" name="TCPServer_Config">
       <ownedAttribute xmi:id="_5rKWhe5TEeitL-zKjjNp2A" name="port" visibility="public" isStatic="true" isReadOnly="true">
@@ -643,4 +674,5 @@ srv->start();&#xD;
   <CppPropertySets:GeneralParameterProperties xmi:id="_UPBpMO50EeitL-zKjjNp2A" base_Parameter="_UPAbEe50EeitL-zKjjNp2A" nativeType="const std::string&amp;"/>
   <CppPropertySets:GeneralParameterProperties xmi:id="_9Y0HAPFTEeiGPObbQ5S9rA" base_Parameter="_9Yy44PFTEeiGPObbQ5S9rA" nativeType="const std::string&amp;"/>
   <CppPropertySets:GeneralParameterProperties xmi:id="_sj5i4PFUEeiGPObbQ5S9rA" base_Parameter="_sj470vFUEeiGPObbQ5S9rA" nativeType="const std::string&amp;"/>
+  <CppPropertySets:GeneralOperationProperties xmi:id="_lBm2UPF5EeiGPObbQ5S9rA" base_Operation="_j8WecPF5EeiGPObbQ5S9rA" polymorphic="true"/>
 </xmi:XMI>
