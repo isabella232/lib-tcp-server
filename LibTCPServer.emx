@@ -354,7 +354,7 @@ srv->start();&#xD;
 	string cmd = var_cmd.convert&lt;string>();&#xD;
 	cout &lt;&lt; &quot;JSON command received: &quot; &lt;&lt; cmd &lt;&lt; endl &lt;&lt; flush;&#xD;
 &#xD;
-	if (cmd == &quot;sendEvent&quot;) {&#xD;
+	if (cmd == &quot;sendEvent&quot; || cmd == &quot;invokeEvent&quot;) {&#xD;
 		Var var_port = object->get(&quot;port&quot;);&#xD;
 		string portName = var_port.convert&lt;string>();&#xD;
 &#xD;
@@ -421,14 +421,61 @@ srv->start();&#xD;
 	    	//foundSignalDescriptor->type->decode(data, &amp;decoder);&#xD;
 	    }&#xD;
 &#xD;
-	    foundPort->send(foundSignalDescriptor->value, data, foundSignalDescriptor->type, General);&#xD;
+	    // Is a port index specified?&#xD;
+	    int portIndex = -1;&#xD;
+	    try {&#xD;
+	    	Var var_portIndex = object->get(&quot;portIndex&quot;);&#xD;
+	    	if (!var_portIndex.isEmpty())&#xD;
+	    		portIndex = var_portIndex.convert&lt;int>();&#xD;
+	    }&#xD;
+	    catch (Poco::Exception e) {&#xD;
+	    	conn->replyStatus(ITCPConnection::Status::Error, &quot;Illegal portIndex: &quot; + e.message());&#xD;
+	    	return;&#xD;
+	    }&#xD;
+	    &#xD;
+	    if (cmd == &quot;sendEvent&quot;) {	    &#xD;
+			int result = (portIndex == -1) ?&#xD;
+					foundPort->send(foundSignalDescriptor->value, data, foundSignalDescriptor->type, General) :&#xD;
+					foundPort->sendAt(portIndex, foundSignalDescriptor->value, data, foundSignalDescriptor->type, General);&#xD;
+			if (result == 0) {&#xD;
+				// Failed to send&#xD;
+				conn->replyStatus(ITCPConnection::Status::Error, context()->strerror());&#xD;
+				return;&#xD;
+			}&#xD;
+			&#xD;
+			conn->replyStatus(ITCPConnection::Status::OK, &quot;Command sendEvent succeeded!&quot;);&#xD;
+	    }&#xD;
+	    else if (cmd == &quot;invokeEvent&quot;) {&#xD;
+	    	RTMessage* replies = new RTMessage[foundPort->size()];&#xD;
+	    	int result = (portIndex == -1) ?&#xD;
+					foundPort->invoke(replies, foundSignalDescriptor->value, data, foundSignalDescriptor->type, true /* implicitReply */) :&#xD;
+					foundPort->invokeAt(portIndex, replies, foundSignalDescriptor->value, data, foundSignalDescriptor->type, true /* implicitReply */);&#xD;
+			if (result == 0) {&#xD;
+				// Failed to invoke&#xD;
+				conn->replyStatus(ITCPConnection::Status::Error, context()->strerror());&#xD;
+				delete[] replies;&#xD;
+				return;&#xD;
+			}   &#xD;
+			&#xD;
+			string strResult = &quot;[&quot;;&#xD;
+			for (int i = 0; i &lt; result /* number of replies */; i++) {&#xD;
+				if (i > 0)&#xD;
+					strResult.append(&quot;, &quot;);&#xD;
+				RTDynamicStringOutBuffer buf;			&#xD;
+				RTJsonEncoding coding(&amp;buf);&#xD;
+				coding.put_msg(&amp;replies[i]);&#xD;
+				strResult.append(buf.getString());&#xD;
+			}&#xD;
+			strResult.append(&quot;]&quot;);&#xD;
+			delete[] replies;&#xD;
+			&#xD;
+			conn->replyStatus(ITCPConnection::Status::OK, &quot;Command invokeEvent succeeded!&quot;, strResult);&#xD;
+	    }&#xD;
 &#xD;
 		if (dataType != 0) {&#xD;
-			// The data was copied when sending the event, so now we must destroy it&#xD;
+			// The data was copied when sending or invoking the event, so now we must destroy it&#xD;
 			dataType->destroy(data, RTObject_class::DestroyAndDeallocate);&#xD;
-		}&#xD;
-		&#xD;
-		conn->replyStatus(ITCPConnection::Status::OK, &quot;Command sendEvent succeeded!&quot;);&#xD;
+		}			&#xD;
 	}&#xD;
 	else {&#xD;
 		// Unknown command&#xD;
@@ -457,15 +504,6 @@ srv->start();&#xD;
       </ownedOperation>
     </packagedElement>
     <packagedElement xmi:type="uml:Class" xmi:id="_5rKWgO5TEeitL-zKjjNp2A" name="TCPServer_Config">
-      <ownedAttribute xmi:id="_5rKWge5TEeitL-zKjjNp2A" name="maxTCPMessageSize" visibility="public" isStatic="true">
-        <eAnnotations xmi:id="_5rKWgu5TEeitL-zKjjNp2A" source="com.hcl.xtools.properties">
-          <details xmi:id="_5rKWg-5TEeitL-zKjjNp2A" key="cpp/constExpression/java.lang.Boolean" value="true"/>
-        </eAnnotations>
-        <type xmi:type="uml:PrimitiveType" href="platform:/plugin/com.ibm.xtools.umldt.rt.cpp.core/libraries/CppPrimitiveDatatypes.emx#_b5qeIMuSEdy4n9Rh8xcU5g?CppPrimitiveDatatypes/unsigned%20int?"/>
-        <defaultValue xmi:type="uml:LiteralInteger" xmi:id="_5rKWhO5TEeitL-zKjjNp2A" value="1024">
-          <type xmi:type="uml:PrimitiveType" href="platform:/plugin/com.ibm.xtools.umldt.rt.cpp.core/libraries/CppPrimitiveDatatypes.emx#_b5qeIMuSEdy4n9Rh8xcU5g?CppPrimitiveDatatypes/unsigned%20int?"/>
-        </defaultValue>
-      </ownedAttribute>
       <ownedAttribute xmi:id="_5rKWhe5TEeitL-zKjjNp2A" name="port" visibility="public" isStatic="true" isReadOnly="true">
         <type xmi:type="uml:PrimitiveType" href="platform:/plugin/com.ibm.xtools.umldt.rt.cpp.core/libraries/CppPrimitiveDatatypes.emx#_b5qeIMuSEdy4n9Rh8xcU5g?CppPrimitiveDatatypes/unsigned%20int?"/>
         <defaultValue xmi:type="uml:LiteralInteger" xmi:id="_5rKWhu5TEeitL-zKjjNp2A" value="9911">
@@ -501,7 +539,15 @@ srv->start();&#xD;
       <ownedOperation xmi:id="_UPAbEO50EeitL-zKjjNp2A" name="replyStatus">
         <ownedParameter xmi:id="_eGuuIO50EeitL-zKjjNp2A" name="status" type="_aqjiMO50EeitL-zKjjNp2A"/>
         <ownedParameter xmi:id="_UPAbEe50EeitL-zKjjNp2A" name="msg"/>
+        <ownedParameter xmi:id="_9Yy44PFTEeiGPObbQ5S9rA" name="result"/>
         <ownedParameter xmi:id="_UPAbEu50EeitL-zKjjNp2A" name="return" direction="return">
+          <type xmi:type="uml:PrimitiveType" href="platform:/plugin/com.ibm.xtools.umldt.rt.cpp.core/libraries/CppPrimitiveDatatypes.emx#_f0877hKyEdyaM9S2zG4bgA?CppPrimitiveDatatypes/void?"/>
+        </ownedParameter>
+      </ownedOperation>
+      <ownedOperation xmi:id="_sj470PFUEeiGPObbQ5S9rA" name="replyStatus">
+        <ownedParameter xmi:id="_sj470fFUEeiGPObbQ5S9rA" name="status" type="_aqjiMO50EeitL-zKjjNp2A"/>
+        <ownedParameter xmi:id="_sj470vFUEeiGPObbQ5S9rA" name="msg"/>
+        <ownedParameter xmi:id="_sj471PFUEeiGPObbQ5S9rA" name="return" direction="return">
           <type xmi:type="uml:PrimitiveType" href="platform:/plugin/com.ibm.xtools.umldt.rt.cpp.core/libraries/CppPrimitiveDatatypes.emx#_f0877hKyEdyaM9S2zG4bgA?CppPrimitiveDatatypes/void?"/>
         </ownedParameter>
       </ownedOperation>
@@ -573,7 +619,7 @@ srv->start();&#xD;
   <UMLRealTime:Capsule xmi:id="_5rMywO5TEeitL-zKjjNp2A" base_Class="_5rHTMO5TEeitL-zKjjNp2A"/>
   <CppPropertySets:GeneralCapsuleProperties xmi:id="_5rMywe5TEeitL-zKjjNp2A" base_Class="_5rHTMO5TEeitL-zKjjNp2A">
     <headerPreface xmi:id="_5rMywu5TEeitL-zKjjNp2A" body="#include &lt;string>&#xD;&#xA;namespace Poco {&#xD;&#xA;&#x9;namespace Net {&#xD;&#xA;&#x9;&#x9;class TCPServer;&#xD;&#xA;&#x9;}&#xD;&#xA;}&#xD;&#xA;"/>
-    <implementationPreface xmi:id="_5rMyw-5TEeitL-zKjjNp2A" body="#include &quot;Poco/Net/TCPServer.h&quot;&#xD;&#xA;#include &quot;Poco/Net/TCPServerConnection.h&quot;&#xD;&#xA;#include &quot;Poco/Net/TCPServerConnectionFactory.h&quot;&#xD;&#xA;#include &quot;Poco/Net/StreamSocket.h&quot;&#xD;&#xA;#include &quot;Poco/Net/ServerSocket.h&quot;&#xD;&#xA;#include &quot;Poco/Exception.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/Parser.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/Object.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/JSONException.h&quot;&#xD;&#xA;#include &quot;Poco/Dynamic/Var.h&quot;&#xD;&#xA;#include &quot;Poco/Thread.h&quot;&#xD;&#xA;#include &lt;iostream>&#xD;&#xA;#include &lt;sstream>&#xD;&#xA;&#xD;&#xA;#include &lt;RTUnknownObject.h>&#xD;&#xA;&#xD;&#xA;using Poco::Net::StreamSocket;&#xD;&#xA;using Poco::Net::ServerSocket;&#xD;&#xA;using Poco::Net::TCPServerConnection;&#xD;&#xA;using Poco::Net::TCPServerConnectionFactory;&#xD;&#xA;using Poco::JSON::Parser;&#xD;&#xA;using Poco::JSON::Object;&#xD;&#xA;using Poco::JSON::JSONException;&#xD;&#xA;using Poco::Dynamic::Var;&#xD;&#xA;using Poco::Thread;&#xD;&#xA;using namespace std;&#xD;&#xA;&#xD;&#xA;// Represents an active connection to the local TCP server&#xD;&#xA;class LocalServerConnection : public TCPServerConnection, public ITCPConnection&#xD;&#xA;{&#xD;&#xA;&#x9;const std::string NL = &quot;\n&quot;;&#xD;&#xA;&#x9;Thread* thread;&#xD;&#xA;&#x9;bool hasReplied;&#xD;&#xA;public:&#xD;&#xA;&#x9;LocalServerConnection(const StreamSocket&amp; s, TCPServer_Actor&amp; context):&#xD;&#xA;&#x9;&#x9;TCPServerConnection(s),&#xD;&#xA;&#x9;&#x9;capsuleInst(context),&#xD;&#xA;&#x9;&#x9;thread(0),&#xD;&#xA;&#x9;&#x9;hasReplied(false)&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;&#xD;&#xA;&#x9;void run()&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;&#x9;thread = Thread::current();&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;cout &lt;&lt; &quot;TCP request from &quot; &lt;&lt; this->socket().peerAddress().toString() &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#x9;&#x9;try&#xD;&#xA;&#x9;&#x9;{&#xD;&#xA;&#x9;&#x9;&#x9;char buffer[1024];&#xD;&#xA;&#x9;&#x9;&#x9;size_t n;&#xD;&#xA;&#x9;&#x9;&#x9;std::string received;&#xD;&#xA;&#x9;&#x9;&#x9;do {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;n = socket().receiveBytes(buffer, sizeof(buffer));&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;if (n > 0)&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;received.append(buffer, n);&#xD;&#xA;&#x9;&#x9;&#x9;} &#xD;&#xA;&#x9;&#x9;&#x9;while (n == sizeof(buffer) &amp;&amp; socket().available() > 0);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;//cout &lt;&lt; &quot;Data read: &quot; &lt;&lt; received &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;&#x9;std::pair&lt;std::string, LocalServerConnection*>* data = new std::pair&lt;std::string, LocalServerConnection*>(received, this);&#xD;&#xA;&#x9;&#x9;&#x9;capsuleInst.external.dataPushBack(data);&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;&#x9;if (capsuleInst.external.raise() == 0) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;// The capsule is not ready to receive the external event. Wait a little and try 2 more times before giving up.&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;thread->sleep(500);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;if (capsuleInst.external.raise() == 0) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;thread->sleep(500);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;if (capsuleInst.external.raise() == 0) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;replyStatus(Status::Error, &quot;Failed to notify TCPServer capsule about received message after 3 attempts. Message is lost!&quot;);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;// Need to remove the data object since this LocalServerConnection soon will become invalid&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;capsuleInst.external.dataDelete(data);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;return;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;}&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;&#x9;// Keep the server connection open until a reply is received (or a timeout occurs).&#xD;&#xA;&#x9;&#x9;&#x9;if (thread->trySleep(capsuleInst.config.maxWaitForReply)) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;// Timeout&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;std::ostringstream s;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;s &lt;&lt; &quot;No response from RT application within &quot; &lt;&lt; capsuleInst.config.maxWaitForReply &lt;&lt; &quot; ms.&quot;;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;replyStatus(Status::Error, s.str());&#xD;&#xA;&#x9;&#x9;&#x9;}&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;catch (Poco::Exception&amp; exc)&#xD;&#xA;&#x9;&#x9;{&#xD;&#xA;&#x9;&#x9;&#x9;replyStatus(Status::Error, &quot;Failed to read from socket: &quot; + exc.displayText());&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;virtual void reply(const std::string&amp; msg) {&#xD;&#xA;&#x9;&#x9;if (hasReplied) {&#xD;&#xA;&#x9;&#x9;&#x9;cout &lt;&lt; &quot;Warning: Multiple reply detected for request. Message: &quot; &lt;&lt; msg &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#x9;&#x9;&#x9;return;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;socket().sendBytes(msg.data(), (int) msg.length());&#xD;&#xA;&#x9;&#x9;socket().sendBytes(NL.data(), (int) NL.length());&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;if (Thread::current() == 0 || Thread::current()->tid() != thread->tid())&#xD;&#xA;&#x9;&#x9;&#x9;thread->wakeUp();&#xD;&#xA;&#x9;&#x9;hasReplied = true;&#xD;&#xA;&#x9;}&#x9;&#xD;&#xA;&#xD;&#xA;&#x9;virtual void replyStatus(Status status, const std::string&amp; msg) {&#xD;&#xA;&#x9;&#x9;std::string s = &quot;ok&quot;;&#xD;&#xA;&#x9;&#x9;if (status == Status::Error) {&#xD;&#xA;&#x9;&#x9;&#x9;s = &quot;error&quot;;&#xD;&#xA;&#x9;&#x9;&#x9;cout &lt;&lt; s &lt;&lt; &quot;: &quot; &lt;&lt; msg &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;std::string str = &quot;{\&quot;status\&quot;:\&quot;&quot; + s + &quot;\&quot;, msg:\&quot;&quot; + msg + &quot;\&quot;}&quot;;&#xD;&#xA;&#x9;&#x9;reply(str);&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;private:&#xD;&#xA;&#x9;TCPServer_Actor&amp; capsuleInst;&#xD;&#xA;};&#xD;&#xA;&#xD;&#xA;class LocalServerConnectionFactory: public TCPServerConnectionFactory&#xD;&#xA;&#x9;/// A factory for LocalServerConnection.&#xD;&#xA;{&#xD;&#xA;public:&#xD;&#xA;&#x9;LocalServerConnectionFactory(TCPServer_Actor&amp; context)&#xD;&#xA;&#x9;&#x9;: capsuleInst(context)&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;&#xD;&#xA;&#x9;TCPServerConnection* createConnection(const StreamSocket&amp; socket)&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;&#x9;return new LocalServerConnection(socket, capsuleInst);&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;private:&#xD;&#xA;&#x9;TCPServer_Actor&amp; capsuleInst;&#xD;&#xA;};&#xD;&#xA;"/>
+    <implementationPreface xmi:id="_5rMyw-5TEeitL-zKjjNp2A" body="#include &quot;Poco/Net/TCPServer.h&quot;&#xD;&#xA;#include &quot;Poco/Net/TCPServerConnection.h&quot;&#xD;&#xA;#include &quot;Poco/Net/TCPServerConnectionFactory.h&quot;&#xD;&#xA;#include &quot;Poco/Net/StreamSocket.h&quot;&#xD;&#xA;#include &quot;Poco/Net/ServerSocket.h&quot;&#xD;&#xA;#include &quot;Poco/Exception.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/Parser.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/Object.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/JSONException.h&quot;&#xD;&#xA;#include &quot;Poco/Dynamic/Var.h&quot;&#xD;&#xA;#include &quot;Poco/Thread.h&quot;&#xD;&#xA;#include &quot;Poco/Exception.h&quot;&#xD;&#xA;#include &lt;iostream>&#xD;&#xA;#include &lt;sstream>&#xD;&#xA;&#xD;&#xA;#include &lt;RTUnknownObject.h>&#xD;&#xA;#include &lt;RTDynamicStringOutBuffer.h>&#xD;&#xA;#include &lt;RTJsonEncoding.h>&#xD;&#xA;&#xD;&#xA;using Poco::Net::StreamSocket;&#xD;&#xA;using Poco::Net::ServerSocket;&#xD;&#xA;using Poco::Net::TCPServerConnection;&#xD;&#xA;using Poco::Net::TCPServerConnectionFactory;&#xD;&#xA;using Poco::JSON::Parser;&#xD;&#xA;using Poco::JSON::Object;&#xD;&#xA;using Poco::JSON::JSONException;&#xD;&#xA;using Poco::Dynamic::Var;&#xD;&#xA;using Poco::Thread;&#xD;&#xA;using namespace std;&#xD;&#xA;&#xD;&#xA;// Represents an active connection to the local TCP server&#xD;&#xA;class LocalServerConnection : public TCPServerConnection, public ITCPConnection&#xD;&#xA;{&#xD;&#xA;&#x9;const std::string NL = &quot;\n&quot;;&#xD;&#xA;&#x9;Thread* thread;&#xD;&#xA;&#x9;bool hasReplied;&#xD;&#xA;public:&#xD;&#xA;&#x9;LocalServerConnection(const StreamSocket&amp; s, TCPServer_Actor&amp; context):&#xD;&#xA;&#x9;&#x9;TCPServerConnection(s),&#xD;&#xA;&#x9;&#x9;capsuleInst(context),&#xD;&#xA;&#x9;&#x9;thread(0),&#xD;&#xA;&#x9;&#x9;hasReplied(false)&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;&#xD;&#xA;&#x9;void run()&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;&#x9;thread = Thread::current();&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;cout &lt;&lt; &quot;TCP request from &quot; &lt;&lt; this->socket().peerAddress().toString() &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#x9;&#x9;try&#xD;&#xA;&#x9;&#x9;{&#xD;&#xA;&#x9;&#x9;&#x9;char buffer[1024];&#xD;&#xA;&#x9;&#x9;&#x9;size_t n;&#xD;&#xA;&#x9;&#x9;&#x9;std::string received;&#xD;&#xA;&#x9;&#x9;&#x9;do {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;n = socket().receiveBytes(buffer, sizeof(buffer));&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;if (n > 0)&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;received.append(buffer, n);&#xD;&#xA;&#x9;&#x9;&#x9;} &#xD;&#xA;&#x9;&#x9;&#x9;while (n == sizeof(buffer) &amp;&amp; socket().available() > 0);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;//cout &lt;&lt; &quot;Data read: &quot; &lt;&lt; received &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;&#x9;std::pair&lt;std::string, LocalServerConnection*>* data = new std::pair&lt;std::string, LocalServerConnection*>(received, this);&#xD;&#xA;&#x9;&#x9;&#x9;capsuleInst.external.dataPushBack(data);&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;&#x9;if (capsuleInst.external.raise() == 0) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;// The capsule is not ready to receive the external event. Wait a little and try 2 more times before giving up.&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;thread->sleep(500);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;if (capsuleInst.external.raise() == 0) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;thread->sleep(500);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;if (capsuleInst.external.raise() == 0) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;replyStatus(Status::Error, &quot;Failed to notify TCPServer capsule about received message after 3 attempts. Message is lost!&quot;);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;// Need to remove the data object since this LocalServerConnection soon will become invalid&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;capsuleInst.external.dataDelete(data);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;return;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;}&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;}&#xD;&#xA;&#xD;&#xA;#ifdef _DEBUG&#xD;&#xA;&#x9;&#x9;&#x9;long sleepDuration = 1000000;&#xD;&#xA;#else&#xD;&#xA;&#x9;&#x9;&#x9;long sleepDuration = capsuleInst.config.maxWaitForReply;&#xD;&#xA;#endif&#xD;&#xA;&#x9;&#x9;&#x9;// Keep the server connection open until a reply is received (or a timeout occurs).&#xD;&#xA;&#x9;&#x9;&#x9;if (thread->trySleep(sleepDuration)) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;// Timeout&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;std::ostringstream s;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;s &lt;&lt; &quot;No response from RT application within &quot; &lt;&lt; sleepDuration &lt;&lt; &quot; ms.&quot;;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;replyStatus(Status::Error, s.str());&#xD;&#xA;&#x9;&#x9;&#x9;}&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;catch (Poco::Exception&amp; exc)&#xD;&#xA;&#x9;&#x9;{&#xD;&#xA;&#x9;&#x9;&#x9;replyStatus(Status::Error, &quot;Failed to read from socket: &quot; + exc.displayText());&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;virtual void reply(const std::string&amp; msg) {&#xD;&#xA;&#x9;&#x9;if (hasReplied) {&#xD;&#xA;&#x9;&#x9;&#x9;cout &lt;&lt; &quot;Warning: Multiple reply detected for request. Message: &quot; &lt;&lt; msg &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#x9;&#x9;&#x9;return;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;socket().sendBytes(msg.data(), (int) msg.length());&#xD;&#xA;&#x9;&#x9;socket().sendBytes(NL.data(), (int) NL.length());&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;if (Thread::current() == 0 || Thread::current()->tid() != thread->tid())&#xD;&#xA;&#x9;&#x9;&#x9;thread->wakeUp();&#xD;&#xA;&#x9;&#x9;hasReplied = true;&#xD;&#xA;&#x9;}&#x9;&#xD;&#xA;&#xD;&#xA;&#x9;virtual void replyStatus(Status status, const std::string&amp; msg, const std::string&amp; result) {&#xD;&#xA;&#x9;&#x9;std::string s = &quot;ok&quot;;&#xD;&#xA;&#x9;&#x9;if (status == Status::Error) {&#xD;&#xA;&#x9;&#x9;&#x9;s = &quot;error&quot;;&#xD;&#xA;&#x9;&#x9;&#x9;cout &lt;&lt; s &lt;&lt; &quot;: &quot; &lt;&lt; msg &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;std::string str = &quot;{\&quot;status\&quot;:\&quot;&quot; + s + &quot;\&quot;, msg:\&quot;&quot; + msg;&#xD;&#xA;&#x9;&#x9;if (!result.empty()) {&#xD;&#xA;&#x9;&#x9;&#x9;str.append(&quot;, \&quot;result\&quot;: &quot;);&#xD;&#xA;&#x9;&#x9;&#x9;str.append(result);&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;str.append(&quot;\&quot;}&quot;);&#xD;&#xA;&#x9;&#x9;reply(str);&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;virtual void replyStatus(Status status, const std::string&amp; msg) {&#xD;&#xA;&#x9;&#x9;replyStatus(status, msg, &quot;&quot;);&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;private:&#xD;&#xA;&#x9;TCPServer_Actor&amp; capsuleInst;&#xD;&#xA;};&#xD;&#xA;&#xD;&#xA;class LocalServerConnectionFactory: public TCPServerConnectionFactory&#xD;&#xA;&#x9;/// A factory for LocalServerConnection.&#xD;&#xA;{&#xD;&#xA;public:&#xD;&#xA;&#x9;LocalServerConnectionFactory(TCPServer_Actor&amp; context)&#xD;&#xA;&#x9;&#x9;: capsuleInst(context)&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;&#xD;&#xA;&#x9;TCPServerConnection* createConnection(const StreamSocket&amp; socket)&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;&#x9;return new LocalServerConnection(socket, capsuleInst);&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;private:&#xD;&#xA;&#x9;TCPServer_Actor&amp; capsuleInst;&#xD;&#xA;};&#xD;&#xA;"/>
     <publicDeclarations xmi:id="_5rMyxO5TEeitL-zKjjNp2A" body="friend class LocalServerConnection;"/>
   </CppPropertySets:GeneralCapsuleProperties>
   <CppPropertySets:GeneralAttributeProperties xmi:id="_5rNZ0O5TEeitL-zKjjNp2A" base_Property="_5rHTOu5TEeitL-zKjjNp2A" nativeType="Poco::Net::TCPServer*"/>
@@ -595,4 +641,6 @@ srv->start();&#xD;
   <UMLRealTime:Protocol xmi:id="_ZJ6VAO5XEeitL-zKjjNp2A" base_Collaboration="_ZJ5G4e5XEeitL-zKjjNp2A"/>
   <UMLRealTime:InEvent xmi:id="_ZJ6VAe5XEeitL-zKjjNp2A" base_CallEvent="_ZJ5G7e5XEeitL-zKjjNp2A"/>
   <CppPropertySets:GeneralParameterProperties xmi:id="_UPBpMO50EeitL-zKjjNp2A" base_Parameter="_UPAbEe50EeitL-zKjjNp2A" nativeType="const std::string&amp;"/>
+  <CppPropertySets:GeneralParameterProperties xmi:id="_9Y0HAPFTEeiGPObbQ5S9rA" base_Parameter="_9Yy44PFTEeiGPObbQ5S9rA" nativeType="const std::string&amp;"/>
+  <CppPropertySets:GeneralParameterProperties xmi:id="_sj5i4PFUEeiGPObbQ5S9rA" base_Parameter="_sj470vFUEeiGPObbQ5S9rA" nativeType="const std::string&amp;"/>
 </xmi:XMI>
