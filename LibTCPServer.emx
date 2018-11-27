@@ -481,7 +481,7 @@ srv->start();&#xD;
 					strResult.append(&quot;, &quot;);&#xD;
 				if (!replies[i].isValid()) {&#xD;
 					// Invalid reply.&#xD;
-					strResult.append(&quot;{\&quot;_isValid\&quot; : false}&quot;);&#xD;
+					strResult.append(&quot;{\&quot;isValid\&quot; : false}&quot;);&#xD;
 					continue;&#xD;
 				}&#xD;
 				RTDynamicStringOutBuffer buf;			&#xD;
