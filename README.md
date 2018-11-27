@@ -12,6 +12,9 @@ It's possible to implement a custom handling of incoming messages, but the defau
 
 To implement your own custom handling of received messages, override the operation `TCPServer::handleReceivedMessageCustom()` and set the config property `defaultHandlingOfReceivedMessages` to false.
 
+## Build the Library
+The library uses the [POCO C++ libraries](https://pocoproject.org) and you must therefore first clone and build the [POCO GitHub repository](https://pocoproject.org). 
+
 ## Configuration Properties
 Configuration properties are defined as static attributes of the `TCPServer_Config` class. If you don't want to change their default values in the library, you have to programmatically override the attribute values you want to change. You can do this by overriding the operation `init()` in your capsule that inherits from `TCPServer`. For example:
 
@@ -34,7 +37,7 @@ The TCP port on which the remote application (that will receive outgoing message
 
 
 ## JSON Format of Incoming Messages
-The default implementation (in `TCPServer::handleReceivedMessageDefault()`) expects incoming TCP messages to be a JSON object. The object must have the property `command` set to one of the commands listed below. Which other properties on the JSON object that are expected depends on the command.
+The default implementation (in `TCPServer::handleReceivedMessageDefault()`) expects incoming TCP messages to be a string encoded JSON object. The object must have the property `command` set to one of the commands listed below. Which other properties on the JSON object that are expected depends on the command.
 
 ### sendEvent
 Send an event into the application through a port on the TCPServer capsule part.
@@ -89,26 +92,29 @@ The response is a JSON object with the following properties:
 A message clarifying the status (especially if the status is 'error').
 - **result**:array
 An array of JSON objects representing the reply messages. There will be one object for each reply. The objects have the following properties.
-  - **_event**:string
+  - **event**:string
   Name of the reply event.
-  - **_type**:string
+  - **type**:string
   Data type of the reply event.
-  - **_data**:any *[optional]*
-  The RTist JSON encoding of the data object attached to the reply event. The type of this property is determined by the "_type" property and can either be a string, a boolean, an integer, an array or an object.
+  - **data**:any *[optional]*
+  The RTist JSON encoding of the data object attached to the reply event. The type of this property is determined by the "type" property and can either be a string, a boolean, an integer, an array or an object.
   - **_isValid**:boolean *[optional]*
   This property is only present (and set to false) if the JSON object represents an invalid reply event. This for example happens if the receiver did not make an explicit reply, even if the reply event contains data. No other properties will be present for an invalid reply event.
 
 ## JSON Format of Outgoing Messages
 All messages that are not handled by the TCPServer capsule part are considered to be outgoing messages and will be sent to a remote application. Note that the remote application to which outgoing messages are sent does not have to be the same remote application that sends incoming messages to the RTist application.
-Outgoing messages are string encoded JSON objects on the following form:
 
-- **_event**:string
+Outgoing messages are string encoded JSON objects on the same form as the 'sendEvent' objects described above. This makes it possible to wire together multiple RTist applications to build a distributed system of communicating applications. The output of one executable can be consumed by another executable, and the applications become logically connected through the names of the TCPServer capsule ports.
+
+- **event**:string
 Name of the sent event.
-- **_type**:string
+- **type**:string
 Data type of the sent event.
-- **_data**:any *[optional]*
-The RTist JSON encoding of the data object attached to the sent event. The type of this property is determined by the "_type" property and can either be a string, a boolean, an integer, an array or an object.
-- **_port**:string
+- **data**:any *[optional]*
+The RTist JSON encoding of the data object attached to the sent event. The type of this property is determined by the "type" property and can either be a string, a boolean, an integer, an array or an object.
+- **port**:string
 The name of a port on the TCPServer capsule part on which the event arrived.
-- **_portIndex**:integer
+- **portIndex**:integer
 The index of the port instance on which the event arrived. If the port is not replicated (i.e. its multiplicity is 1) then this property is always 1.
+- **priority**:string
+The priority at which the event is sent. The property defaults to "General". Possible priorities are (from highest to lowest) "Panic", "High", "General", "Low" and "Background". 

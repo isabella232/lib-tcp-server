@@ -509,6 +509,10 @@ srv->start();&#xD;
         <language>C++</language>
         <body>// Called when an outgoing message arrives at the TCPServer capsule part.&#xD;
 // JSON encode it and send the encoding to the specified remote host.&#xD;
+&#xD;
+if (config.remoteHost.empty() || config.remotePort == 0)&#xD;
+	return; // Sending of outgoing messages is disabled&#xD;
+&#xD;
 const RTMessage* msg = getMsg();&#xD;
 &#xD;
 RTDynamicStringOutBuffer buf;			&#xD;
@@ -516,12 +520,29 @@ RTJsonEncoding coding(&amp;buf);&#xD;
 coding.put_msg(msg);&#xD;
 string str(buf.getString(), RTMemoryUtil::strlen(buf.getString()) - 1);&#xD;
 &#xD;
+// Make the JSON format identical to 'sendEvent' objects for incoming events&#xD;
+// so it becomes possible to build a distributed RTist application where one&#xD;
+// executable can consume the output of another executable.&#xD;
+string priority = &quot;General&quot;;&#xD;
+if (msg->priority == Panic)&#xD;
+	priority = &quot;Panic&quot;;&#xD;
+else if (msg->priority == High)&#xD;
+	priority = &quot;High&quot;;&#xD;
+else if (msg->priority == Low)&#xD;
+	priority = &quot;Low&quot;;&#xD;
+else if (msg->priority == Background)&#xD;
+	priority = &quot;Background&quot;;&#xD;
+	&#xD;
+str.append(&quot;, \&quot;command\&quot; : \&quot;sendEvent\&quot;, \&quot;priority\&quot; : \&quot;&quot;);&#xD;
+str.append(priority);&#xD;
+str.append(&quot;\&quot;&quot;);&#xD;
+&#xD;
 // Append port and portIndex&#xD;
 RTProtocol * port = msg->sap();&#xD;
 if( port != 0 &amp;&amp; port->getName() != 0) {&#xD;
-	str.append(&quot;, \&quot;_port\&quot; : \&quot;&quot;);&#xD;
+	str.append(&quot;, \&quot;port\&quot; : \&quot;&quot;);&#xD;
 	str.append(port->getName());&#xD;
-	str.append(&quot;\&quot;, \&quot;_portIndex\&quot; : &quot;);&#xD;
+	str.append(&quot;\&quot;, \&quot;portIndex\&quot; : &quot;);&#xD;
 	str.append(std::to_string(msg->sapIndex()));&#xD;
 }&#xD;
 str.append(&quot;}&quot;);&#xD;
@@ -562,8 +583,16 @@ catch (Poco::Exception&amp; exc) {&#xD;
           <type xmi:type="uml:PrimitiveType" href="platform:/plugin/com.ibm.xtools.umldt.rt.cpp.core/libraries/CppPrimitiveDatatypes.emx#_f0877hKyEdyaM9S2zG4bgA?CppPrimitiveDatatypes/void?"/>
         </ownedParameter>
       </ownedOperation>
-      <ownedOperation xmi:id="_j8WecPF5EeiGPObbQ5S9rA" name="unexpectedMessage" method="_29hpUPF5EeiGPObbQ5S9rA"/>
-      <ownedOperation xmi:id="_dbgzYPGUEeiGPObbQ5S9rA" name="init" method="_mO8X4PGUEeiGPObbQ5S9rA"/>
+      <ownedOperation xmi:id="_j8WecPF5EeiGPObbQ5S9rA" name="unexpectedMessage" method="_29hpUPF5EeiGPObbQ5S9rA">
+        <ownedParameter xmi:id="_8U5WYPIYEeiGPObbQ5S9rA" name="return" direction="return">
+          <type xmi:type="uml:PrimitiveType" href="platform:/plugin/com.ibm.xtools.umldt.rt.cpp.core/libraries/CppPrimitiveDatatypes.emx#_f0877hKyEdyaM9S2zG4bgA?CppPrimitiveDatatypes/void?"/>
+        </ownedParameter>
+      </ownedOperation>
+      <ownedOperation xmi:id="_dbgzYPGUEeiGPObbQ5S9rA" name="init" method="_mO8X4PGUEeiGPObbQ5S9rA">
+        <ownedParameter xmi:id="_-HlcAPIYEeiGPObbQ5S9rA" name="return" direction="return">
+          <type xmi:type="uml:PrimitiveType" href="platform:/plugin/com.ibm.xtools.umldt.rt.cpp.core/libraries/CppPrimitiveDatatypes.emx#_f0877hKyEdyaM9S2zG4bgA?CppPrimitiveDatatypes/void?"/>
+        </ownedParameter>
+      </ownedOperation>
     </packagedElement>
     <packagedElement xmi:type="uml:Class" xmi:id="_5rKWgO5TEeitL-zKjjNp2A" name="TCPServer_Config">
       <ownedAttribute xmi:id="_5rKWhe5TEeitL-zKjjNp2A" name="port" visibility="public" isStatic="true">
