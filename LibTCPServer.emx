@@ -183,7 +183,7 @@
       <eAnnotations xmi:id="_n2Oxze5SEeitL-zKjjNp2A" source="RSA_ElementImport"/>
       <importedPackage xmi:type="uml:Model" href="platform:/plugin/com.ibm.xtools.umldt.rt.cpp.core/libraries/RTComponents.emx#__QdLdUB2PEd2Vrcc_Gxok_A37F129B1035A?RTComponents?"/>
     </packageImport>
-    <packagedElement xmi:type="uml:Class" xmi:id="_5rHTMO5TEeitL-zKjjNp2A" name="TCPServer" clientDependency="_RtbVUO5XEeitL-zKjjNp2A">
+    <packagedElement xmi:type="uml:Class" xmi:id="_5rHTMO5TEeitL-zKjjNp2A" name="TCPServer" clientDependency="_RtbVUO5XEeitL-zKjjNp2A _ZmbWsPLdEeiUbIS8Ru5zVw">
       <eAnnotations xmi:id="_5rHTMe5TEeitL-zKjjNp2A" source="uml2.diagrams" references="_5rHTMu5TEeitL-zKjjNp2A">
         <contents xmi:type="umlnotation:UMLDiagram" xmi:id="_5rHTMu5TEeitL-zKjjNp2A" type="Structure" element="_5rHTMO5TEeitL-zKjjNp2A" measurementUnit="Himetric">
           <children xmi:type="umlnotation:UMLShape" xmi:id="_5rHTM-5TEeitL-zKjjNp2A" type="StructureDiagramFrame" element="_5rHTMO5TEeitL-zKjjNp2A" fontName="Segoe UI" fontHeight="8" transparency="0" lineColor="14263149" lineWidth="1" showStereotype="Label">
@@ -404,11 +404,20 @@ srv->start();&#xD;
 	    void* data = 0;&#xD;
 		const RTObject_class* dataType = 0;&#xD;
 	    if (foundSignalDescriptor->type != &amp;RTType_void &amp;&amp; !var_data.isEmpty()) {&#xD;
-	    	// The signal expects data and we have data. Decode the data from JSON.&#xD;
+	    	// The signal expects data and we have data. Decode the data from ASCII format.	    		    		   &#xD;
 	    	string dataString = var_data.convert&lt;string>();&#xD;
 	    	RTMemoryInBuffer source (dataString.c_str(), dataString.size());&#xD;
 	    	RTAsciiDecoding decoder(&amp;source);&#xD;
 			&#xD;
+	    	/*&#xD;
+	    	Var var_type = object->get(&quot;type&quot;);&#xD;
+			if (var_type.isEmpty()) {&#xD;
+				conn->replyStatus(ITCPConnection::Status::Error, &quot;Type of event data must be specified.&quot;);&#xD;
+				return;&#xD;
+			}					&#xD;
+	    	&#xD;
+	    	RTJsonDecoding decoder(dataString, var_type.convert&lt;string>());&#xD;
+	    	*/&#xD;
 			if (decoder.get(&amp;data, &amp;dataType) == 0) {&#xD;
 				conn->replyStatus(ITCPConnection::Status::Error, &quot;Failed to decode data: &quot; + dataString);&#xD;
 				return;&#xD;
@@ -485,9 +494,29 @@ srv->start();&#xD;
 					continue;&#xD;
 				}&#xD;
 				RTDynamicStringOutBuffer buf;			&#xD;
-				RTJsonEncoding coding(&amp;buf);&#xD;
-				coding.put_msg(&amp;replies[i]);&#xD;
-				strResult.append(buf.getString());&#xD;
+				//RTJsonEncoding coding(&amp;buf);&#xD;
+				//coding.put_msg(&amp;replies[i]);&#xD;
+				strResult.append(&quot;{ \&quot;event\&quot; : \&quot;&quot;);&#xD;
+				strResult.append(replies[i].getSignalName());&#xD;
+				strResult.append(&quot;\&quot; &quot;);&#xD;
+				&#xD;
+				const RTObject_class * replyType = replies[i].getType();&#xD;
+				const void* replyData = replies[i].getData();&#xD;
+&#xD;
+				if (replyType != 0) {&#xD;
+					strResult.append(&quot;, \&quot;type\&quot; : \&quot;&quot;);&#xD;
+					strResult.append(replyType->name());&#xD;
+					strResult.append(&quot;\&quot; &quot;);&#xD;
+				}&#xD;
+				if (replyData != 0) {&#xD;
+					RTDynamicStringOutBuffer buf;		&#xD;
+					RTAsciiEncoding coding(&amp;buf);&#xD;
+					coding.put(replyData, replyType);	&#xD;
+					strResult.append(&quot;, \&quot;data\&quot; : \&quot;&quot;);&#xD;
+					strResult.append(buf.getString());&#xD;
+					strResult.append(&quot;\&quot; &quot;);&#xD;
+				}					&#xD;
+				strResult.append(&quot;}&quot;);&#xD;
 			}&#xD;
 			strResult.append(&quot;]&quot;);&#xD;
 			delete[] replies;&#xD;
@@ -514,11 +543,31 @@ if (config.remoteHost.empty() || config.remotePort == 0)&#xD;
 	return; // Sending of outgoing messages is disabled&#xD;
 &#xD;
 const RTMessage* msg = getMsg();&#xD;
+	&#xD;
+//RTJsonEncoding coding(&amp;buf);&#xD;
+//coding.put_msg(msg);&#xD;
+//string str(buf.getString(), RTMemoryUtil::strlen(buf.getString()) - 1);&#xD;
 &#xD;
-RTDynamicStringOutBuffer buf;			&#xD;
-RTJsonEncoding coding(&amp;buf);&#xD;
-coding.put_msg(msg);&#xD;
-string str(buf.getString(), RTMemoryUtil::strlen(buf.getString()) - 1);&#xD;
+string str = &quot;{ \&quot;event\&quot; : \&quot;&quot;;&#xD;
+str.append(msg->getSignalName());&#xD;
+str.append(&quot;\&quot; &quot;);&#xD;
+&#xD;
+const RTObject_class * type = msg->getType();&#xD;
+const void* data = msg->getData();&#xD;
+&#xD;
+if (type != 0) {&#xD;
+	str.append(&quot;, \&quot;type\&quot; : \&quot;&quot;);&#xD;
+	str.append(type->name());&#xD;
+	str.append(&quot;\&quot; &quot;);&#xD;
+}&#xD;
+if (data != 0) {&#xD;
+	RTDynamicStringOutBuffer buf;		&#xD;
+	RTAsciiEncoding coding(&amp;buf);&#xD;
+	coding.put(data, type);	&#xD;
+	str.append(&quot;, \&quot;data\&quot; : \&quot;&quot;);&#xD;
+	str.append(buf.getString());&#xD;
+	str.append(&quot;\&quot; &quot;);&#xD;
+}&#xD;
 &#xD;
 // Make the JSON format identical to 'sendEvent' objects for incoming events&#xD;
 // so it becomes possible to build a distributed RTist application where one&#xD;
@@ -681,6 +730,8 @@ catch (Poco::Exception&amp; exc) {&#xD;
         <name xsi:nil="true"/>
       </packagedElement>
     </packagedElement>
+    <packagedElement xmi:type="uml:Artifact" xmi:id="_t7DdAPJaEeiUbIS8Ru5zVw" name="RTJsonDecoding"/>
+    <packagedElement xmi:type="uml:Dependency" xmi:id="_ZmbWsPLdEeiUbIS8Ru5zVw" name="" supplier="_t7DdAPJaEeiUbIS8Ru5zVw" client="_5rHTMO5TEeitL-zKjjNp2A"/>
     <profileApplication xmi:id="_n2Oxzu5SEeitL-zKjjNp2A">
       <eAnnotations xmi:id="_n2Oxz-5SEeitL-zKjjNp2A" source="http://www.eclipse.org/uml2/2.0.0/UML">
         <references xmi:type="ecore:EPackage" href="pathmap://UML_PROFILES/Standard.profile.uml#_yzU58YinEdqtvbnfB2L_5w"/>
@@ -752,4 +803,9 @@ catch (Poco::Exception&amp; exc) {&#xD;
     <headerPreface xmi:id="_s-NJYPGNEeiGPObbQ5S9rA" body="#include &lt;string>"/>
   </CppPropertySets:GeneralClassProperties>
   <CppPropertySets:GeneralOperationProperties xmi:id="_gi1wsPGUEeiGPObbQ5S9rA" base_Operation="_dbgzYPGUEeiGPObbQ5S9rA" polymorphic="true"/>
+  <CppPropertySets:GeneralArtifactProperties xmi:id="_mg90kPJbEeiUbIS8Ru5zVw" base_Artifact="_t7DdAPJaEeiUbIS8Ru5zVw">
+    <Header xmi:id="_mhBe8PJbEeiUbIS8Ru5zVw" body="#ifndef __RTJsonDecoding_h__&#xD;&#xA;#define __RTJsonDecoding_h__ included&#xD;&#xA;&#xD;&#xA;#ifndef __RTDecoding_h__&#xD;&#xA;#include &lt;RTDecoding.h>&#xD;&#xA;#endif&#xD;&#xA;#include &lt;string>&#xD;&#xA;&#xD;&#xA;namespace Poco {&#xD;&#xA;&#x9;namespace Dynamic {&#xD;&#xA;&#x9;&#x9;class Var;&#xD;&#xA;&#x9;}&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;class RTJsonDecoding : public RTDecoding&#xD;&#xA;{&#xD;&#xA;public:&#xD;&#xA;    explicit RTJsonDecoding(const std::string&amp; data, const std::string&amp; type);&#xD;&#xA;    virtual ~RTJsonDecoding(void);&#xD;&#xA;&#xD;&#xA;    // All the get/put functions return an int which is non-zero&#xD;&#xA;    // if the operation was successful. Otherwise, the following&#xD;&#xA;    // function may be called to discover the reason for the&#xD;&#xA;    // failure.&#xD;&#xA;    int         getError( void );&#xD;&#xA;&#xD;&#xA;    virtual int get( void **, const RTObject_class ** );&#xD;&#xA;&#xD;&#xA;    // basic data types&#xD;&#xA;    virtual int get_address ( void         * &amp; );&#xD;&#xA;    virtual int get_bool    ( bool           &amp; );&#xD;&#xA;    virtual int get_char    ( char           &amp; );&#xD;&#xA;#if RTUseFloatingPoint&#xD;&#xA;    virtual int get_double  ( double         &amp; );&#xD;&#xA;    virtual int get_float   ( float          &amp; );&#xD;&#xA;#endif&#xD;&#xA;    virtual int get_int     ( int            &amp; );&#xD;&#xA;    virtual int get_long    ( long           &amp; );&#xD;&#xA;&#xD;&#xA;&#x9;virtual int get_unsignedint( unsigned int &amp; );&#xD;&#xA;&#x9;virtual int get_unsignedlong( unsigned long &amp; );&#xD;&#xA;&#x9;virtual int get_unsignedshort( unsigned short &amp; );&#xD;&#xA;&#x9;virtual int get_unsignedchar( unsigned char &amp; );&#xD;&#xA;#if 0&#xD;&#xA;#if _MSC_VER > 1000&#xD;&#xA;    virtual int get_long_long( __int64 &amp;  );&#xD;&#xA;#else&#xD;&#xA;    virtual int get_long_long( long long &amp;  );&#xD;&#xA;#endif&#xD;&#xA;#endif&#xD;&#xA;&#xD;&#xA;    virtual int get_short   ( short          &amp; );&#xD;&#xA;    virtual int get_uchar   ( unsigned char  &amp; );&#xD;&#xA;    virtual int get_unsigned( unsigned       &amp; );&#xD;&#xA;    virtual int get_ulong   ( unsigned long  &amp; );&#xD;&#xA;    virtual int get_ushort  ( unsigned short &amp; );&#xD;&#xA;&#xD;&#xA;    // a nul-terminated string&#xD;&#xA;    virtual int get_string( char * &amp; );&#xD;&#xA;&#xD;&#xA;    // zero or more raw bytes&#xD;&#xA;    virtual int get_opaque( int &amp;, char * &amp; );&#xD;&#xA;&#xD;&#xA;    // an enumerated value&#xD;&#xA;    virtual int get_enum( int &amp;, int, const RTFieldDescriptor * );&#xD;&#xA;&#xD;&#xA;    // a homogeneous array of objects&#xD;&#xA;    virtual int get_array( void *, int, const RTObject_class * );&#xD;&#xA;&#xD;&#xA;    // an indirect object&#xD;&#xA;    virtual int get_indirect( void *, const RTObject_class * );&#xD;&#xA;&#xD;&#xA;    // a structure&#xD;&#xA;    virtual int get_struct( void *, const RTObject_class * );&#xD;&#xA;&#xD;&#xA;protected:&#xD;&#xA;    int                 getName( char * value, int length );&#xD;&#xA;    RTUnknownObject   * getUnknown( const char * );&#xD;&#xA;&#xD;&#xA;private:&#xD;&#xA;    enum              { UngetMax = 3 };&#xD;&#xA;&#xD;&#xA;    int                 unget_size;&#xD;&#xA;    char                unget_buffer[ UngetMax ];&#xD;&#xA;    const std::string&amp;  input;&#xD;&#xA;    const std::string&amp;&#x9;expectedType;&#xD;&#xA;    Poco::Dynamic::Var*&#x9;currentDataObj; // Currently processed data object in the parse tree&#xD;&#xA;&#xD;&#xA;    // unavailable methods&#xD;&#xA;    RTJsonDecoding( const RTJsonDecoding &amp; );&#xD;&#xA;    RTJsonDecoding &amp; operator=( const RTJsonDecoding &amp; );&#xD;&#xA;}; //lint !e1712&#xD;&#xA;&#xD;&#xA;#endif // __RTJsonDecoding_h__"/>
+    <Implementation xmi:id="_mhCtEPJbEeiUbIS8Ru5zVw" body="#include &lt;RTJsonDecoding.h>&#xD;&#xA;#include &lt;RTObject_class.h>&#xD;&#xA;#include &lt;RTUnknownObject.h>&#xD;&#xA;&#xD;&#xA;#include &quot;Poco/JSON/Parser.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/Object.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/JSONException.h&quot;&#xD;&#xA;#include &quot;Poco/Dynamic/Var.h&quot;&#xD;&#xA;&#xD;&#xA;using Poco::JSON::Parser;&#xD;&#xA;using Poco::JSON::Object;&#xD;&#xA;using Poco::JSON::JSONException;&#xD;&#xA;using Poco::Dynamic::Var;&#xD;&#xA;using namespace std;&#xD;&#xA;&#xD;&#xA;RTJsonDecoding::RTJsonDecoding(const string&amp; data, const string&amp; type)&#xD;&#xA;    : RTDecoding()&#xD;&#xA;    , unget_size(0)&#xD;&#xA;    , input(data)&#xD;&#xA;&#x9;, expectedType(type){&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;RTJsonDecoding::~RTJsonDecoding() {&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get( void ** data, RTObject_class const ** type ) {&#xD;&#xA;&#x9;Parser parser;&#xD;&#xA;&#x9;Var result;&#xD;&#xA;&#x9;try {&#xD;&#xA;&#x9;&#x9;result = parser.parse(input);&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;catch (JSONException e) {&#xD;&#xA;&#x9;&#x9;return 0; // JSON syntax error&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;&#xD;&#xA;&#x9;Object::Ptr object = result.extract&lt;Object::Ptr>();&#xD;&#xA;&#xD;&#xA;&#x9;Var var_data = object->get(&quot;data&quot;);&#xD;&#xA;&#x9;if (var_data.isEmpty()) {&#xD;&#xA;&#x9;&#x9;return 0; // 'data' not specified&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;currentDataObj = &amp;var_data;&#xD;&#xA;&#x9;&#x9;&#xD;&#xA;    if( (*type = RTObject_class::lookup(expectedType.c_str())) == (const RTObject_class *)0 ) {&#xD;&#xA;    &#x9;//RTUnknownObject * unknown = getUnknown(type);&#xD;&#xA;&#xD;&#xA;    &#x9;//if( unknown == (RTUnknownObject *)0 )&#xD;&#xA;    &#x9;//&#x9;return 0;&#xD;&#xA;&#xD;&#xA;    &#x9;//*data = (void *)unknown;&#xD;&#xA;    &#x9;//*type = &amp;RTType_RTUnknownObject;&#xD;&#xA;&#xD;&#xA;    &#x9;//return 1;&#xD;&#xA;    &#x9;return 0; // TODO: Support UnknownObject&#xD;&#xA;    }&#xD;&#xA;&#xD;&#xA;    *data = (*type)->allocate();&#xD;&#xA;&#xD;&#xA;    if( *data == (void *)0 )&#xD;&#xA;    &#x9;return 0; // no space?&#xD;&#xA;&#xD;&#xA;    (*type)->init( *data );&#xD;&#xA;&#xD;&#xA;    if( (*type)->decode( *data, this ) == 0 ) {&#xD;&#xA;    &#x9;(*type)->destroy( *data, RTObject_class::DestroyAndDeallocate );&#xD;&#xA;    &#x9;return 0; // Failed to decode data&#xD;&#xA;    }&#xD;&#xA;&#xD;&#xA;    return 1; // Success!&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_int( int &amp; value ) {&#xD;&#xA;&#x9;long tmp = 0;&#xD;&#xA;&#x9;int res = get_long(tmp);&#xD;&#xA;&#x9;value = (int) tmp;&#xD;&#xA;&#x9;return res;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_long( long &amp; value ) {&#xD;&#xA;&#x9;try {&#xD;&#xA;&#x9;&#x9;value = currentDataObj->convert&lt;int>();&#xD;&#xA;&#x9;&#x9;return 1; // Success!&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;catch (Poco::Exception&amp; e) {&#xD;&#xA;&#x9;&#x9;return 0; // Not an integer&#xD;&#xA;&#x9;}&#x9;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_bool( bool &amp; value )&#xD;&#xA;{&#xD;&#xA;&#x9;try {&#xD;&#xA;&#x9;&#x9;value = currentDataObj->convert&lt;bool>();&#xD;&#xA;&#x9;&#x9;return 1; // Success!&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;catch (Poco::Exception&amp; e) {&#xD;&#xA;&#x9;&#x9;return 0; // Not a boolean&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;&#x9;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_address( void * &amp; address ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_char( char &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_double( double &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_float( float &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_unsignedint( unsigned int &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_unsignedlong( unsigned long &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_unsignedshort( unsigned short &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_unsignedchar( unsigned char &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_short( short &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_uchar( unsigned char &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_unsigned( unsigned &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_ulong( unsigned long &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_ushort( unsigned short &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_opaque( int &amp; value_size, char * &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_string( char * &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_enum( int &amp; value, int numElements, const RTFieldDescriptor * element ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_array( void * target, int size, const RTObject_class * element ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_indirect( void * pointer, const RTObject_class * target ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_struct( void * target, const RTObject_class * record ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}"/>
+  </CppPropertySets:GeneralArtifactProperties>
+  <CppPropertySets:GeneralDependencyProperties xmi:id="_al5PoPLdEeiUbIS8Ru5zVw" base_Dependency="_ZmbWsPLdEeiUbIS8Ru5zVw" kindInHeader="none"/>
 </xmi:XMI>

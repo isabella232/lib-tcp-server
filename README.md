@@ -78,7 +78,7 @@ The name of a port on the TCPServer capsule part through which to send the event
 - **event**:string *[mandatory]*
 The name of an event defined in the protocol that types the port specified above. The event should be an "outEvent" if the port is not conjugated. If it is conjugated the event should be an "inEvent".
 - **data**:string *[optional]*
-The RTist ASCII encoding of the data object to send with the event. This encoding is on the same format as you for example see if tracing the event during a model debug session.
+The RTist ASCII encoding of the data object to pass with the event. This encoding is on the same format as you for example see if tracing the event during a model debug session.
 - **portIndex**:integer *[optional]*
 If the port is replicated (i.e. its multiplicity is > 1) you can specify the index of the port instance you want to send the message to. Omitting the portIndex on a replicated port means that the event will be broadcasted through all port instances.
 - **priority**:string *[optional]*
@@ -87,7 +87,7 @@ The priority at which the event should be sent. The property defaults to "Genera
 The response is a JSON object with the following properties:
 
 - **status**:string 
-'ok' if the command was successful, otherwise 'error'
+'ok' if the command was successful, otherwise 'error'.
 - **msg**:string
 A message clarifying the status (especially if the status is 'error').
 
@@ -105,15 +105,15 @@ The name of a port on the TCPServer capsule part through which to invoke the eve
 - **event**:string *[mandatory]*
 The name of an event defined in the protocol that types the port specified above. The event should be an "outEvent" if the port is not conjugated. If it is conjugated the event should be an "inEvent".
 - **data**:string *[optional]*
-The RTist ASCII encoding of the data object to send with the event. This encoding is on the same format as you for example see if tracing the event during a model debug session.
+The RTist ASCII encoding of the data object to pass with the event. This encoding is on the same format as you for example see if tracing the event during a model debug session.
 - **portIndex**:integer *[optional]*
-If the port is replicated (i.e. its multiplicity is > 1) you can specify the index of the port instance you want to send the message to. Omitting the portIndex on a replicated port means that the event will be broadcasted through all port instances
+If the port is replicated (i.e. its multiplicity is > 1) you can specify the index of the port instance you want to invoke the event to. Omitting the portIndex on a replicated port means that the event will be broadcasted through all port instances.
 . 
 
 The response is a JSON object with the following properties:
 
 - **status**:string 
-'ok' if the command was successful, otherwise 'error'
+'ok' if the command was successful, otherwise 'error'.
 - **msg**:string
 A message clarifying the status (especially if the status is 'error').
 - **result**:array
@@ -122,8 +122,8 @@ An array of JSON objects representing the reply messages. There will be one obje
   Name of the reply event.
   - **type**:string
   Data type of the reply event.
-  - **data**:any *[optional]*
-  The RTist JSON encoding of the data object attached to the reply event. The type of this property is determined by the "type" property and can either be a string, a boolean, an integer, an array or an object.
+  - **data**:string *[optional]*
+  The RTist ASCII encoding of the data object attached to the sent event. This encoding is on the same format as you for example see if tracing the event during a model debug session.
   - **isValid**:boolean *[optional]*
   This property is only present (and set to false) if the JSON object represents an invalid reply event. This for example happens if the receiver did not make an explicit reply, even if the reply event contains data. No other properties will be present for an invalid reply event.
 
@@ -132,12 +132,14 @@ All messages that are not handled by the TCPServer capsule part are considered t
 
 Outgoing messages are string encoded JSON objects on the same form as the 'sendEvent' objects described above. This makes it possible to wire together multiple RTist applications to build a distributed system of communicating applications. The output of one executable can be consumed by another executable, and the applications become logically connected through the names of the TCPServer capsule ports.
 
+- **command**:string
+Always set to "sendEvent".
 - **event**:string
 Name of the sent event.
 - **type**:string
 Data type of the sent event.
-- **data**:any *[optional]*
-The RTist JSON encoding of the data object attached to the sent event. The type of this property is determined by the "type" property and can either be a string, a boolean, an integer, an array or an object.
+- **data**:string *[optional]*
+The RTist ASCII encoding of the data object attached to the sent event. This encoding is on the same format as you for example see if tracing the event during a model debug session.
 - **port**:string
 The name of a port on the TCPServer capsule part on which the event arrived.
 - **portIndex**:integer

@@ -1,5 +1,6 @@
 let tc = TCF.define(TCF.CPP_TRANSFORM);
 let topTC = TCF.getRootTransformationConfiguration();
+let pocoLoc = topTC.pocoLoc || 'D:\\github\\poco';
 
 tc.sources = [
     'platform:/resource/LibTcpServer/LibTCPServer.emx#_n2OxwO5SEeitL-zKjjNp2A'
@@ -7,14 +8,20 @@ tc.sources = [
 tc.createTargetProject = true;
 tc.targetProject = '/LibTCPServer_target';
 tc.type = CppTransformType.Library;
-tc.compilationMakeType = topTC.compilationMakeType;
-tc.compileArguments = topTC.compileArguments;
+tc.compilationMakeType = topTC.compilationMakeType || MakeType.MS_nmake;
+tc.compileArguments = topTC.compileArguments || '$(DEBUG_TAG)';
 tc.inclusionPaths = [
-    topTC.pocoLoc + '\\Net\\include',
-    topTC.pocoLoc + '\\JSON\\include',
-    topTC.pocoLoc + '\\Foundation\\include'
+    pocoLoc + '\\Net\\include',
+    pocoLoc + '\\JSON\\include',
+    pocoLoc + '\\Foundation\\include'
 ];
-tc.supportForFileArtifacts = false;
-tc.targetConfiguration = topTC.targetConfiguration;
-tc.targetServicesLibrary = topTC.targetServicesLibrary;
+tc.supportForFileArtifacts = true;
+tc.targetConfiguration = topTC.targetConfiguration || 'WinT.x64-VisualC++-15.0';
+tc.targetServicesLibrary = topTC.targetServicesLibrary || 'D:\\git\\rsarte-target-rts\\rsa_rt\\C++\\TargetRTS';
 tc.unitName = 'UnitName_TCPLib';
+tc.copyrightText = `
+/*******************************************************************************
+ * (c) Copyright HCL Technologies Ltd. 2018.  MIT Licensed!
+ *******************************************************************************/
+`;
+tc.libraryName = 'tcpServerLib$(LIB_EXT)';
