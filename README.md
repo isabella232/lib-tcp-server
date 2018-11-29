@@ -80,7 +80,7 @@ The name of an event defined in the protocol that types the port specified above
 - **data**:string *[optional]*
 The RTist ASCII encoding of the data object to pass with the event. This encoding is on the same format as you for example see if tracing the event during a model debug session.
 - **portIndex**:integer *[optional]*
-If the port is replicated (i.e. its multiplicity is > 1) you can specify the index of the port instance you want to send the message to. Omitting the portIndex on a replicated port means that the event will be broadcasted through all port instances.
+If the port is replicated (i.e. its multiplicity is > 1) you can specify the index of the port instance you want to send the message to. Omitting the portIndex on a replicated port means that the event will be broadcasted through all port instances. Port indices are zero-based.
 - **priority**:string *[optional]*
 The priority at which the event should be sent. The property defaults to "General". Valid priorities are (from highest to lowest) "Panic", "High", "General", "Low" and "Background". 
 
@@ -107,7 +107,7 @@ The name of an event defined in the protocol that types the port specified above
 - **data**:string *[optional]*
 The RTist ASCII encoding of the data object to pass with the event. This encoding is on the same format as you for example see if tracing the event during a model debug session.
 - **portIndex**:integer *[optional]*
-If the port is replicated (i.e. its multiplicity is > 1) you can specify the index of the port instance you want to invoke the event to. Omitting the portIndex on a replicated port means that the event will be broadcasted through all port instances.
+If the port is replicated (i.e. its multiplicity is > 1) you can specify the index of the port instance you want to invoke the event to. Omitting the portIndex on a replicated port means that the event will be broadcasted through all port instances. Port indices are zero-based.
 . 
 
 The response is a JSON object with the following properties:
@@ -143,6 +143,6 @@ The RTist ASCII encoding of the data object attached to the sent event. This enc
 - **port**:string
 The name of a port on the TCPServer capsule part on which the event arrived.
 - **portIndex**:integer
-The index of the port instance on which the event arrived. If the port is not replicated (i.e. its multiplicity is 1) then this property is always 1.
+The zero-based index of the port instance on which the event arrived. If the port is not replicated (i.e. its multiplicity is 1) then this property is always 0.
 - **priority**:string
 The priority at which the event is sent. The property defaults to "General". Possible priorities are (from highest to lowest) "Panic", "High", "General", "Low" and "Background". 
