@@ -1,6 +1,6 @@
 let tc = TCF.define(TCF.CPP_TRANSFORM);
 let topTC = TCF.getRootTransformationConfiguration();
-let pocoLoc = topTC.pocoLoc || 'D:\\github\\poco';
+let pocoLoc = topTC.pocoLoc || 'D:\\tmp\\poco';
 
 tc.sources = [
     'platform:/resource/LibTcpServer/LibTCPServer.emx#_n2OxwO5SEeitL-zKjjNp2A'
@@ -10,7 +10,7 @@ tc.targetProject = '/LibTCPServer_target';
 tc.type = CppTransformType.Library;
 tc.compilationMakeType = topTC.compilationMakeType || MakeType.MS_nmake;
 tc.compileArguments = topTC.compileArguments || '$(DEBUG_TAG)';
-tc.inclusionPaths = [
+tc.inclusionPaths = topTC.inclusionPaths || [
     pocoLoc + '\\Net\\include',
     pocoLoc + '\\JSON\\include',
     pocoLoc + '\\Foundation\\include'
