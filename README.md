@@ -23,16 +23,6 @@ Add the TC `tcpServerLib.tcjs` as a prerequisite of the executable TC for your R
 tc.pocoLoc = 'D:\\github\\poco';
 `
 
-Also modify your executable TC to add the paths to POCO include files. Use the property you just added:
-
-`
-tc.inclusionPaths = [
-    tc.pocoLoc + '\\Net\\include',
-    tc.pocoLoc + '\\JSON\\include',
-    tc.pocoLoc + '\\Foundation\\include'
-];
-`
-
 Also tell the linker where to find the built POCO libraries. For example, for Visual Studio 64 bit set the following:
 
 `
@@ -40,6 +30,14 @@ tc.linkArguments = '/MACHINE:X64 /LIBPATH:"' + tc.pocoLoc + '\\lib64"';
 `
 
 Finally, if you have built POCO as shared libraries remember to set the PATH variable (on Windows) or LD\_LIBRARY\_PATH (on Unix) to include the folder where they are located. For 64 bit builds the folder is called 'bin64' and is in the POCO root folder.
+
+Note that the TC `tcpServerLib.tcjs` is designed to be built as a prerequisite of an executable TC and will reuse some of the TC properties from that executable (using the topTC variable). Here is an example of such a TC property:
+
+` 
+tc.compileArguments = topTC.compileArguments || '$(DEBUG_TAG)';
+`
+
+If you want to be able to build the library TC directly (i.e. as a "top TC"), you should first modify these TC properties (essentially making sure that the value after the '||' is appropriate).
 
 ## Configuration Properties
 Configuration properties are defined as static attributes of the `TCPServer_Config` class. If you don't want to change their default values in the library, you have to programmatically override the attribute values you want to change. You can do this by overriding the operation `init()` in your capsule that inherits from `TCPServer`. For example:
