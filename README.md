@@ -125,6 +125,27 @@ An array of JSON objects representing the reply messages. There will be one obje
   - **isValid**:boolean *[optional]*
   This property is only present (and set to false) if the JSON object represents an invalid reply event. This for example happens if the receiver did not make an explicit reply, even if the reply event contains data. No other properties will be present for an invalid reply event.
 
+### getPorts
+Get a list of all ports of the TCPServer capsule part and the events that can be sent through them.
+Example:  
+
+`
+{ "command": "getPorts" }
+`
+
+The response is a JSON object with the following properties:
+
+- **status**:string 
+'ok' if the command was successful, otherwise 'error'.
+- **msg**:string
+A message clarifying the status (especially if the status is 'error').
+- **result**:array
+An array of JSON objects representing the ports of the TCPServer capsule part. There will be one object for each port. The objects have the following properties.
+  - **name**:string
+  Name of the port.
+  - **events**:array
+  The names of the events that can be sent through this particular port.
+
 ## JSON Format of Outgoing Messages
 All messages that are not handled by the TCPServer capsule part are considered to be outgoing messages and will be sent to a remote application. Note that the remote application to which outgoing messages are sent does not have to be the same remote application that sends incoming messages to the RTist application.
 
