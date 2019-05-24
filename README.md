@@ -121,7 +121,7 @@ An array of JSON objects representing the reply messages. There will be one obje
   - **type**:string
   Data type of the reply event.
   - **data**:string *[optional]*
-  The RTist ASCII encoding of the data object attached to the sent event. This encoding is on the same format as you for example see if tracing the event during a model debug session.
+  The RTist ASCII encoding of the data object attached to the reply event. This encoding is on the same format as you for example see if tracing the event during a model debug session.
   - **isValid**:boolean *[optional]*
   This property is only present (and set to false) if the JSON object represents an invalid reply event. This for example happens if the receiver did not make an explicit reply, even if the reply event contains data. No other properties will be present for an invalid reply event.
 
@@ -164,7 +164,7 @@ The name of a port on the TCPServer capsule part on which the event arrived.
 - **portIndex**:integer
 The zero-based index of the port instance on which the event arrived. If the port is not replicated (i.e. its multiplicity is 1) then this property is always 0.
 - **priority**:string
-The priority at which the event is sent. The property defaults to "General". Possible priorities are (from highest to lowest) "Panic", "High", "General", "Low" and "Background". This property is only present if the event was sent. Invoked events does not have it.
+The priority at which the event is sent. The property defaults to "General". Possible priorities are (from highest to lowest) "Panic", "High", "General", "Low" and "Background". This property is only present if the event was sent. Invoked events do not have it.
 
 The remote application can make a reply on an invoked event by sending a response for the received TCP string. The response string should be a string encoded JSON object representing a reply command, i.e. the "command" property should be set to "reply".
 Example:  
