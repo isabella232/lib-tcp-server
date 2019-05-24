@@ -149,19 +149,39 @@ An array of JSON objects representing the ports of the TCPServer capsule part. T
 ## JSON Format of Outgoing Messages
 All messages that are not handled by the TCPServer capsule part are considered to be outgoing messages and will be sent to a remote application. Note that the remote application to which outgoing messages are sent does not have to be the same remote application that sends incoming messages to the RTist application.
 
-Outgoing messages are string encoded JSON objects on the same form as the 'sendEvent' objects described above. This makes it possible to wire together multiple RTist applications to build a distributed system of communicating applications. The output of one executable can be consumed by another executable, and the applications become logically connected through the names of the TCPServer capsule ports.
+Outgoing messages are string encoded JSON objects on the same form as the 'sendEvent' or 'invokeEvent' objects described above. This makes it possible to wire together multiple RTist applications to build a distributed system of communicating applications. The output of one executable can be consumed by another executable, and the applications become logically connected through the names of the TCPServer capsule ports.
 
 - **command**:string
-Always set to "sendEvent".
+Set to "sendEvent" if the outgoing message was sent, or "invokeEvent" if the outgoing message was invoked.
 - **event**:string
-Name of the sent event.
+Name of the event.
 - **type**:string
-Data type of the sent event.
+Data type of the event.
 - **data**:string *[optional]*
-The RTist ASCII encoding of the data object attached to the sent event. This encoding is on the same format as you for example see if tracing the event during a model debug session.
+The RTist ASCII encoding of the data object attached to the event. This encoding is on the same format as you for example see if tracing the event during a model debug session.
 - **port**:string
 The name of a port on the TCPServer capsule part on which the event arrived.
 - **portIndex**:integer
 The zero-based index of the port instance on which the event arrived. If the port is not replicated (i.e. its multiplicity is 1) then this property is always 0.
 - **priority**:string
-The priority at which the event is sent. The property defaults to "General". Possible priorities are (from highest to lowest) "Panic", "High", "General", "Low" and "Background". 
+The priority at which the event is sent. The property defaults to "General". Possible priorities are (from highest to lowest) "Panic", "High", "General", "Low" and "Background". This property is only present if the event was sent. Invoked events does not have it.
+
+The remote application can make a reply on an invoked event by sending a response for the received TCP string. The response string should be a string encoded JSON object representing a reply command, i.e. the "command" property should be set to "reply".
+Example:  
+
+`
+{ "command": "reply", "port" : "camera", "event" : "imageFilename", "data" : "StdString \"D:/temp/test.jpg\"" }
+`
+
+- **port**:string
+The name of a port on the TCPServer capsule part on which the reply will be made (should be the same port on which the invoked event arrived).
+- **event**:string
+The name of the reply event.
+- **data**:string *[optional]*
+The RTist ASCII encoding of the data object to be attached to the reply event. This encoding is on the same format as you for example see if tracing the event during a model debug session.
+
+Note that the remote application must always send a response for a TCP request it receives, even if it doesn't want to reply on an invoked event. The RTist application will wait until it has received a response. You can simply send back an empty JSON object to let it proceed its execution: 
+
+`
+{ }
+`

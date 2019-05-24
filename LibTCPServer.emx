@@ -609,27 +609,37 @@ if (data != 0) {&#xD;
 	RTDynamicStringOutBuffer buf;		&#xD;
 	RTAsciiEncoding coding(&amp;buf);&#xD;
 	coding.put(data, type);	&#xD;
-	str.append(&quot;, \&quot;data\&quot; : \&quot;&quot;);&#xD;
-	str.append(buf.getString());&#xD;
-	str.append(&quot;\&quot; &quot;);&#xD;
+	str.append(&quot;, \&quot;data\&quot; : &quot;);&#xD;
+	// Make sure the data is encoded as a valid JSON string&#xD;
+	stringstream json;&#xD;
+	Stringifier::formatString(buf.getString(), json);&#xD;
+	str.append(json.str());&#xD;
 }&#xD;
 &#xD;
-// Make the JSON format identical to 'sendEvent' objects for incoming events&#xD;
+// Make the JSON format identical to 'sendEvent' or 'invokeEvent' objects for incoming events&#xD;
 // so it becomes possible to build a distributed RTist application where one&#xD;
 // executable can consume the output of another executable.&#xD;
-string priority = &quot;General&quot;;&#xD;
-if (msg->priority == Panic)&#xD;
-	priority = &quot;Panic&quot;;&#xD;
-else if (msg->priority == High)&#xD;
-	priority = &quot;High&quot;;&#xD;
-else if (msg->priority == Low)&#xD;
-	priority = &quot;Low&quot;;&#xD;
-else if (msg->priority == Background)&#xD;
-	priority = &quot;Background&quot;;&#xD;
-	&#xD;
-str.append(&quot;, \&quot;command\&quot; : \&quot;sendEvent\&quot;, \&quot;priority\&quot; : \&quot;&quot;);&#xD;
-str.append(priority);&#xD;
-str.append(&quot;\&quot;&quot;);&#xD;
+str.append(&quot;, \&quot;command\&quot; : \&quot;&quot;);&#xD;
+if (msg->priority == System) {&#xD;
+	// Invoked event&#xD;
+	str.append(&quot;invokeEvent\&quot;&quot;);&#xD;
+}&#xD;
+else {&#xD;
+	// Sent event&#xD;
+	string priority = &quot;General&quot;;&#xD;
+	if (msg->priority == Panic)&#xD;
+		priority = &quot;Panic&quot;;&#xD;
+	else if (msg->priority == High)&#xD;
+		priority = &quot;High&quot;;&#xD;
+	else if (msg->priority == Low)&#xD;
+		priority = &quot;Low&quot;;&#xD;
+	else if (msg->priority == Background)&#xD;
+		priority = &quot;Background&quot;;&#xD;
+&#xD;
+	str.append(&quot;sendEvent\&quot;, \&quot;priority\&quot; : \&quot;&quot;);&#xD;
+	str.append(priority);&#xD;
+	str.append(&quot;\&quot;&quot;);&#xD;
+}&#xD;
 &#xD;
 // Append port and portIndex&#xD;
 RTProtocol * port = msg->sap();&#xD;
@@ -661,8 +671,9 @@ try {&#xD;
 			received.append(buffer, n);&#xD;
 	}&#xD;
 	while (n == sizeof(buffer) &amp;&amp; socket.available() > 0);&#xD;
-&#xD;
+	&#xD;
 	cout &lt;&lt; &quot;Response for out message: &quot; &lt;&lt; received &lt;&lt; endl &lt;&lt; flush;&#xD;
+	handleResponseForOutMessage(received);&#xD;
 }&#xD;
 catch (Poco::Exception&amp; exc) {&#xD;
 	if (!writeSuccess)&#xD;
@@ -674,6 +685,120 @@ catch (Poco::Exception&amp; exc) {&#xD;
       <ownedBehavior xmi:type="uml:OpaqueBehavior" xmi:id="_mO8X4PGUEeiGPObbQ5S9rA" name="init" specification="_dbgzYPGUEeiGPObbQ5S9rA">
         <language>C++</language>
         <body>// Override to set custom values of configuration properties </body>
+      </ownedBehavior>
+      <ownedBehavior xmi:type="uml:OpaqueBehavior" xmi:id="_YPc3cHxrEemQvv1wPLSA6g" name="handleResponseForOutMessage" specification="_YPbpUHxrEemQvv1wPLSA6g">
+        <language>C++</language>
+        <body>	Parser parser;&#xD;
+	Var result;&#xD;
+	try {&#xD;
+		result = parser.parse(response);&#xD;
+	}&#xD;
+	catch (JSONException e) {&#xD;
+		cout &lt;&lt; &quot;ERROR: Failed to parse JSON: &quot; &lt;&lt; e.displayText() &lt;&lt; endl &lt;&lt; flush;&#xD;
+		return;&#xD;
+	}&#xD;
+	Object::Ptr object = result.extract&lt;Object::Ptr>();&#xD;
+	Var var_cmd = object->get(&quot;command&quot;);&#xD;
+	if (var_cmd.isEmpty())&#xD;
+		return; // No command provided - skip it&#xD;
+	&#xD;
+	string cmd = var_cmd.convert&lt;string>();&#xD;
+	cout &lt;&lt; &quot;Response contained JSON command: &quot; &lt;&lt; cmd &lt;&lt; endl &lt;&lt; flush;&#xD;
+&#xD;
+	if (cmd == &quot;reply&quot;) {&#xD;
+		Var var_port = object->get(&quot;port&quot;);&#xD;
+		string portName = var_port.convert&lt;string>();&#xD;
+&#xD;
+		// Find a matching port in this capule&#xD;
+		const RTActor_class* actorData = getActorData();&#xD;
+&#xD;
+		RTProtocol* foundPort = 0;&#xD;
+		const RTPortDescriptor* foundPortDescriptor = 0;&#xD;
+		const RTPortDescriptor* portDescriptor = actorData->ports;&#xD;
+		for (int i = actorData->numPorts; --i >= 0 &amp;&amp; !foundPortDescriptor; ++portDescriptor ) {&#xD;
+			RTProtocol* port = RTObjectOf( RTProtocol, portDescriptor->offset, this );&#xD;
+			if (portName == port->getName()) {&#xD;
+				foundPortDescriptor = portDescriptor;&#xD;
+				foundPort = port;&#xD;
+			}&#xD;
+		}&#xD;
+&#xD;
+		if (!foundPortDescriptor || !foundPort) {&#xD;
+			cout &lt;&lt; &quot;ERROR: Failed to find port: &quot; &lt;&lt; portName &lt;&lt; endl &lt;&lt; flush;			&#xD;
+			return;&#xD;
+		}&#xD;
+&#xD;
+		const RTProtocolDescriptor* protocolDescriptor = foundPortDescriptor->protocol;&#xD;
+		const RTProtocolDescriptor* protocolDescriptorConjugate = protocolDescriptor->conjugate;&#xD;
+&#xD;
+		// Find a matching out event in the port protocol&#xD;
+		Var var_event = object->get(&quot;event&quot;);&#xD;
+		string eventName = var_event.convert&lt;string>();&#xD;
+&#xD;
+		const RTSignalDescriptor* foundSignalDescriptor = 0;&#xD;
+	    const RTSignalDescriptor* signalDescriptor = protocolDescriptorConjugate->inSignals;&#xD;
+	    for (int sigCount  = protocolDescriptorConjugate->numInSignals; --sigCount >= 0 &amp;&amp; !foundSignalDescriptor; ++signalDescriptor ) {&#xD;
+	    	if (eventName == signalDescriptor->name) {&#xD;
+	    		foundSignalDescriptor = signalDescriptor;&#xD;
+	    	}&#xD;
+	    }&#xD;
+&#xD;
+	    if (!foundSignalDescriptor) {&#xD;
+	    	cout &lt;&lt; &quot;ERROR: Failed to find event: &quot; &lt;&lt; eventName &lt;&lt; endl &lt;&lt; flush;			&#xD;
+			return;&#xD;
+	    }&#xD;
+&#xD;
+	    Var var_data = object->get(&quot;data&quot;);&#xD;
+	    void* data = 0;&#xD;
+		const RTObject_class* dataType = 0;&#xD;
+	    if (foundSignalDescriptor->type != &amp;RTType_void &amp;&amp; !var_data.isEmpty()) {&#xD;
+	    	// The signal expects data and we have data. Decode the data from ASCII format.	    		    		   &#xD;
+	    	string dataString = var_data.convert&lt;string>();&#xD;
+	    	RTMemoryInBuffer source (dataString.c_str(), dataString.size());&#xD;
+	    	RTAsciiDecoding decoder(&amp;source);&#xD;
+			&#xD;
+	    	/*&#xD;
+	    	Var var_type = object->get(&quot;type&quot;);&#xD;
+			if (var_type.isEmpty()) {&#xD;
+				conn->replyStatus(ITCPConnection::Status::Error, &quot;Type of event data must be specified.&quot;);&#xD;
+				return;&#xD;
+			}					&#xD;
+	    	&#xD;
+	    	RTJsonDecoding decoder(dataString, var_type.convert&lt;string>());&#xD;
+	    	*/&#xD;
+			if (decoder.get(&amp;data, &amp;dataType) == 0) {&#xD;
+				cout &lt;&lt; &quot;ERROR: Failed to decode data: &quot; &lt;&lt; dataString &lt;&lt; endl &lt;&lt; flush;				&#xD;
+				return;&#xD;
+			}&#xD;
+			&#xD;
+			if (dataType == &amp;RTType_RTUnknownObject) {&#xD;
+				cout &lt;&lt; &quot;ERROR: Failed to decode data (it has an unknown type): &quot; &lt;&lt; dataString &lt;&lt; endl &lt;&lt; flush;				&#xD;
+				return;&#xD;
+			}&#xD;
+&#xD;
+			// TODO: Check so that dataType is compatible with foundSignalDescriptor->type&#xD;
+&#xD;
+	    	//foundSignalDescriptor->type->decode(data, &amp;decoder);&#xD;
+	    }&#xD;
+	    &#xD;
+	    // We are now ready to perform the reply&#xD;
+	    int result = foundPort->reply(foundSignalDescriptor->value, data, foundSignalDescriptor->type);		&#xD;
+		if (result == 0) {&#xD;
+			// Failed to reply&#xD;
+			cout &lt;&lt; &quot;ERROR: &quot; &lt;&lt; context()->strerror() &lt;&lt; endl &lt;&lt; flush;			&#xD;
+			return;&#xD;
+		}   &#xD;
+		&#xD;
+		if (dataType != 0) {&#xD;
+			// The data was copied when replying the event, so now we must destroy it&#xD;
+			dataType->destroy(data, RTObject_class::DestroyAndDeallocate);&#xD;
+		}			&#xD;
+	}	&#xD;
+	else {&#xD;
+		// Unknown command&#xD;
+		cout &lt;&lt; &quot;ERROR: Unknown command: &quot; &lt;&lt; cmd &lt;&lt; endl &lt;&lt; flush;&#xD;
+	}&#xD;
+	</body>
       </ownedBehavior>
       <ownedOperation xmi:id="_5rH6Q-5TEeitL-zKjjNp2A" name="onRequestReceived">
         <ownedParameter xmi:id="_5rH6RO5TEeitL-zKjjNp2A" name="return" direction="return">
@@ -702,6 +827,12 @@ catch (Poco::Exception&amp; exc) {&#xD;
       </ownedOperation>
       <ownedOperation xmi:id="_dbgzYPGUEeiGPObbQ5S9rA" name="init" method="_mO8X4PGUEeiGPObbQ5S9rA">
         <ownedParameter xmi:id="_-HlcAPIYEeiGPObbQ5S9rA" name="return" direction="return">
+          <type xmi:type="uml:PrimitiveType" href="platform:/plugin/com.ibm.xtools.umldt.rt.cpp.core/libraries/CppPrimitiveDatatypes.emx#_f0877hKyEdyaM9S2zG4bgA?CppPrimitiveDatatypes/void?"/>
+        </ownedParameter>
+      </ownedOperation>
+      <ownedOperation xmi:id="_YPbpUHxrEemQvv1wPLSA6g" name="handleResponseForOutMessage" visibility="private" method="_YPc3cHxrEemQvv1wPLSA6g">
+        <ownedParameter xmi:id="_YPbpUXxrEemQvv1wPLSA6g" name="response"/>
+        <ownedParameter xmi:id="_YPbpU3xrEemQvv1wPLSA6g" name="return" direction="return">
           <type xmi:type="uml:PrimitiveType" href="platform:/plugin/com.ibm.xtools.umldt.rt.cpp.core/libraries/CppPrimitiveDatatypes.emx#_f0877hKyEdyaM9S2zG4bgA?CppPrimitiveDatatypes/void?"/>
         </ownedParameter>
       </ownedOperation>
@@ -836,7 +967,7 @@ catch (Poco::Exception&amp; exc) {&#xD;
   <UMLRealTime:Capsule xmi:id="_5rMywO5TEeitL-zKjjNp2A" base_Class="_5rHTMO5TEeitL-zKjjNp2A"/>
   <CppPropertySets:GeneralCapsuleProperties xmi:id="_5rMywe5TEeitL-zKjjNp2A" base_Class="_5rHTMO5TEeitL-zKjjNp2A">
     <headerPreface xmi:id="_5rMywu5TEeitL-zKjjNp2A" body="#include &lt;string>&#xD;&#xA;namespace Poco {&#xD;&#xA;&#x9;namespace Net {&#xD;&#xA;&#x9;&#x9;class TCPServer;&#xD;&#xA;&#x9;}&#xD;&#xA;}&#xD;&#xA;"/>
-    <implementationPreface xmi:id="_5rMyw-5TEeitL-zKjjNp2A" body="#include &quot;Poco/Net/TCPServer.h&quot;&#xD;&#xA;#include &quot;Poco/Net/TCPServerConnection.h&quot;&#xD;&#xA;#include &quot;Poco/Net/TCPServerConnectionFactory.h&quot;&#xD;&#xA;#include &quot;Poco/Net/StreamSocket.h&quot;&#xD;&#xA;#include &quot;Poco/Net/ServerSocket.h&quot;&#xD;&#xA;#include &quot;Poco/Net/SocketAddress.h&quot;&#xD;&#xA;#include &quot;Poco/Net/SocketStream.h&quot;&#xD;&#xA;#include &quot;Poco/Exception.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/Parser.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/Object.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/JSONException.h&quot;&#xD;&#xA;#include &quot;Poco/Dynamic/Var.h&quot;&#xD;&#xA;#include &quot;Poco/Thread.h&quot;&#xD;&#xA;#include &quot;Poco/Exception.h&quot;&#xD;&#xA;#include &lt;iostream>&#xD;&#xA;#include &lt;sstream>&#xD;&#xA;&#xD;&#xA;#include &lt;RTUnknownObject.h>&#xD;&#xA;#include &lt;RTDynamicStringOutBuffer.h>&#xD;&#xA;#include &lt;RTJsonEncoding.h>&#xD;&#xA;&#xD;&#xA;using Poco::Net::StreamSocket;&#xD;&#xA;using Poco::Net::ServerSocket;&#xD;&#xA;using Poco::Net::TCPServerConnection;&#xD;&#xA;using Poco::Net::TCPServerConnectionFactory;&#xD;&#xA;using Poco::Net::SocketStream;&#xD;&#xA;using Poco::Net::SocketAddress;&#xD;&#xA;using Poco::JSON::Parser;&#xD;&#xA;using Poco::JSON::Object;&#xD;&#xA;using Poco::JSON::JSONException;&#xD;&#xA;using Poco::Dynamic::Var;&#xD;&#xA;using Poco::Thread;&#xD;&#xA;using namespace std;&#xD;&#xA;&#xD;&#xA;// Represents an active connection to the local TCP server&#xD;&#xA;class LocalServerConnection : public TCPServerConnection, public ITCPConnection&#xD;&#xA;{&#xD;&#xA;&#x9;const std::string NL = &quot;\n&quot;;&#xD;&#xA;&#x9;Thread* thread;&#xD;&#xA;&#x9;bool hasReplied;&#xD;&#xA;public:&#xD;&#xA;&#x9;LocalServerConnection(const StreamSocket&amp; s, TCPServer_Actor&amp; context):&#xD;&#xA;&#x9;&#x9;TCPServerConnection(s),&#xD;&#xA;&#x9;&#x9;capsuleInst(context),&#xD;&#xA;&#x9;&#x9;thread(0),&#xD;&#xA;&#x9;&#x9;hasReplied(false)&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;&#xD;&#xA;&#x9;void run()&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;&#x9;thread = Thread::current();&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;cout &lt;&lt; &quot;TCP request from &quot; &lt;&lt; this->socket().peerAddress().toString() &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#x9;&#x9;try&#xD;&#xA;&#x9;&#x9;{&#xD;&#xA;&#x9;&#x9;&#x9;char buffer[1024];&#xD;&#xA;&#x9;&#x9;&#x9;size_t n;&#xD;&#xA;&#x9;&#x9;&#x9;std::string received;&#xD;&#xA;&#x9;&#x9;&#x9;do {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;n = socket().receiveBytes(buffer, sizeof(buffer));&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;if (n > 0)&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;received.append(buffer, n);&#xD;&#xA;&#x9;&#x9;&#x9;} &#xD;&#xA;&#x9;&#x9;&#x9;while (n == sizeof(buffer) &amp;&amp; socket().available() > 0);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;//cout &lt;&lt; &quot;Data read: &quot; &lt;&lt; received &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;&#x9;std::pair&lt;std::string, LocalServerConnection*>* data = new std::pair&lt;std::string, LocalServerConnection*>(received, this);&#xD;&#xA;&#x9;&#x9;&#x9;capsuleInst.external.dataPushBack(data);&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;&#x9;if (capsuleInst.external.raise() == 0) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;// The capsule is not ready to receive the external event. Wait a little and try 2 more times before giving up.&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;thread->sleep(500);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;if (capsuleInst.external.raise() == 0) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;thread->sleep(500);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;if (capsuleInst.external.raise() == 0) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;replyStatus(Status::Error, &quot;Failed to notify TCPServer capsule about received message after 3 attempts. Message is lost!&quot;);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;// Need to remove the data object since this LocalServerConnection soon will become invalid&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;capsuleInst.external.dataDelete(data);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;return;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;}&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;}&#xD;&#xA;&#xD;&#xA;#ifdef _DEBUG&#xD;&#xA;&#x9;&#x9;&#x9;long sleepDuration = 1000000;&#xD;&#xA;#else&#xD;&#xA;&#x9;&#x9;&#x9;long sleepDuration = capsuleInst.config.maxWaitForReply;&#xD;&#xA;#endif&#xD;&#xA;&#x9;&#x9;&#x9;// Keep the server connection open until a reply is received (or a timeout occurs).&#xD;&#xA;&#x9;&#x9;&#x9;if (thread->trySleep(sleepDuration)) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;// Timeout&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;std::ostringstream s;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;s &lt;&lt; &quot;No response from RT application within &quot; &lt;&lt; sleepDuration &lt;&lt; &quot; ms.&quot;;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;replyStatus(Status::Error, s.str());&#xD;&#xA;&#x9;&#x9;&#x9;}&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;catch (Poco::Exception&amp; exc) {&#xD;&#xA;&#x9;&#x9;&#x9;replyStatus(Status::Error, &quot;Failed to read from socket: &quot; + exc.displayText());&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;virtual void reply(const std::string&amp; msg) {&#xD;&#xA;&#x9;&#x9;if (hasReplied) {&#xD;&#xA;&#x9;&#x9;&#x9;cout &lt;&lt; &quot;Warning: Multiple reply detected for request. Message: &quot; &lt;&lt; msg &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#x9;&#x9;&#x9;return;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;try {&#xD;&#xA;&#x9;&#x9;&#x9;socket().sendBytes(msg.data(), (int) msg.length());&#xD;&#xA;&#x9;&#x9;&#x9;socket().sendBytes(NL.data(), (int) NL.length());&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;catch (Poco::Exception&amp; exc) {&#xD;&#xA;&#x9;&#x9;&#x9;cout &lt;&lt; &quot;Failed to write reply on socket: &quot; &lt;&lt; exc.displayText() &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;if (Thread::current() == 0 || Thread::current()->tid() != thread->tid())&#xD;&#xA;&#x9;&#x9;&#x9;thread->wakeUp();&#xD;&#xA;&#x9;&#x9;hasReplied = true;&#xD;&#xA;&#x9;}&#x9;&#xD;&#xA;&#xD;&#xA;&#x9;virtual void replyStatus(Status status, const std::string&amp; msg, const std::string&amp; result) {&#xD;&#xA;&#x9;&#x9;std::string s = &quot;ok&quot;;&#xD;&#xA;&#x9;&#x9;if (status == Status::Error) {&#xD;&#xA;&#x9;&#x9;&#x9;s = &quot;error&quot;;&#xD;&#xA;&#x9;&#x9;&#x9;cout &lt;&lt; s &lt;&lt; &quot;: &quot; &lt;&lt; msg &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;std::string str = &quot;{\&quot;status\&quot;:\&quot;&quot; + s + &quot;\&quot;, \&quot;msg\&quot;:\&quot;&quot; + msg + &quot;\&quot;&quot;;&#xD;&#xA;&#x9;&#x9;if (!result.empty()) {&#xD;&#xA;&#x9;&#x9;&#x9;str.append(&quot;, \&quot;result\&quot;: &quot;);&#xD;&#xA;&#x9;&#x9;&#x9;str.append(result);&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;str.append(&quot;}&quot;);&#xD;&#xA;&#x9;&#x9;reply(str);&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;virtual void replyStatus(Status status, const std::string&amp; msg) {&#xD;&#xA;&#x9;&#x9;replyStatus(status, msg, &quot;&quot;);&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;private:&#xD;&#xA;&#x9;TCPServer_Actor&amp; capsuleInst;&#xD;&#xA;};&#xD;&#xA;&#xD;&#xA;class LocalServerConnectionFactory: public TCPServerConnectionFactory&#xD;&#xA;&#x9;/// A factory for LocalServerConnection.&#xD;&#xA;{&#xD;&#xA;public:&#xD;&#xA;&#x9;LocalServerConnectionFactory(TCPServer_Actor&amp; context)&#xD;&#xA;&#x9;&#x9;: capsuleInst(context)&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;&#xD;&#xA;&#x9;TCPServerConnection* createConnection(const StreamSocket&amp; socket)&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;&#x9;return new LocalServerConnection(socket, capsuleInst);&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;private:&#xD;&#xA;&#x9;TCPServer_Actor&amp; capsuleInst;&#xD;&#xA;};&#xD;&#xA;"/>
+    <implementationPreface xmi:id="_5rMyw-5TEeitL-zKjjNp2A" body="#include &quot;Poco/Net/TCPServer.h&quot;&#xD;&#xA;#include &quot;Poco/Net/TCPServerConnection.h&quot;&#xD;&#xA;#include &quot;Poco/Net/TCPServerConnectionFactory.h&quot;&#xD;&#xA;#include &quot;Poco/Net/StreamSocket.h&quot;&#xD;&#xA;#include &quot;Poco/Net/ServerSocket.h&quot;&#xD;&#xA;#include &quot;Poco/Net/SocketAddress.h&quot;&#xD;&#xA;#include &quot;Poco/Net/SocketStream.h&quot;&#xD;&#xA;#include &quot;Poco/Exception.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/Parser.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/Object.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/JSONException.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/Stringifier.h&quot;&#xD;&#xA;#include &quot;Poco/Dynamic/Var.h&quot;&#xD;&#xA;#include &quot;Poco/Thread.h&quot;&#xD;&#xA;#include &quot;Poco/Exception.h&quot;&#xD;&#xA;#include &lt;iostream>&#xD;&#xA;#include &lt;sstream>&#xD;&#xA;&#xD;&#xA;#include &lt;RTUnknownObject.h>&#xD;&#xA;#include &lt;RTDynamicStringOutBuffer.h>&#xD;&#xA;#include &lt;RTJsonEncoding.h>&#xD;&#xA;&#xD;&#xA;using Poco::Net::StreamSocket;&#xD;&#xA;using Poco::Net::ServerSocket;&#xD;&#xA;using Poco::Net::TCPServerConnection;&#xD;&#xA;using Poco::Net::TCPServerConnectionFactory;&#xD;&#xA;using Poco::Net::SocketStream;&#xD;&#xA;using Poco::Net::SocketAddress;&#xD;&#xA;using Poco::JSON::Parser;&#xD;&#xA;using Poco::JSON::Object;&#xD;&#xA;using Poco::JSON::JSONException;&#xD;&#xA;using Poco::JSON::Stringifier;&#xD;&#xA;using Poco::Dynamic::Var;&#xD;&#xA;using Poco::Thread;&#xD;&#xA;using namespace std;&#xD;&#xA;&#xD;&#xA;// Represents an active connection to the local TCP server&#xD;&#xA;class LocalServerConnection : public TCPServerConnection, public ITCPConnection&#xD;&#xA;{&#xD;&#xA;&#x9;const std::string NL = &quot;\n&quot;;&#xD;&#xA;&#x9;Thread* thread;&#xD;&#xA;&#x9;bool hasReplied;&#xD;&#xA;public:&#xD;&#xA;&#x9;LocalServerConnection(const StreamSocket&amp; s, TCPServer_Actor&amp; context):&#xD;&#xA;&#x9;&#x9;TCPServerConnection(s),&#xD;&#xA;&#x9;&#x9;capsuleInst(context),&#xD;&#xA;&#x9;&#x9;thread(0),&#xD;&#xA;&#x9;&#x9;hasReplied(false)&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;&#xD;&#xA;&#x9;void run()&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;&#x9;thread = Thread::current();&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;cout &lt;&lt; &quot;TCP request from &quot; &lt;&lt; this->socket().peerAddress().toString() &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#x9;&#x9;try&#xD;&#xA;&#x9;&#x9;{&#xD;&#xA;&#x9;&#x9;&#x9;char buffer[1024];&#xD;&#xA;&#x9;&#x9;&#x9;size_t n;&#xD;&#xA;&#x9;&#x9;&#x9;std::string received;&#xD;&#xA;&#x9;&#x9;&#x9;do {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;n = socket().receiveBytes(buffer, sizeof(buffer));&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;if (n > 0)&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;received.append(buffer, n);&#xD;&#xA;&#x9;&#x9;&#x9;} &#xD;&#xA;&#x9;&#x9;&#x9;while (n == sizeof(buffer) &amp;&amp; socket().available() > 0);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;//cout &lt;&lt; &quot;Data read: &quot; &lt;&lt; received &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;&#x9;std::pair&lt;std::string, LocalServerConnection*>* data = new std::pair&lt;std::string, LocalServerConnection*>(received, this);&#xD;&#xA;&#x9;&#x9;&#x9;capsuleInst.external.dataPushBack(data);&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;&#x9;if (capsuleInst.external.raise() == 0) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;// The capsule is not ready to receive the external event. Wait a little and try 2 more times before giving up.&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;thread->sleep(500);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;if (capsuleInst.external.raise() == 0) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;thread->sleep(500);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;if (capsuleInst.external.raise() == 0) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;replyStatus(Status::Error, &quot;Failed to notify TCPServer capsule about received message after 3 attempts. Message is lost!&quot;);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;// Need to remove the data object since this LocalServerConnection soon will become invalid&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;capsuleInst.external.dataDelete(data);&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;return;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;}&#x9;&#x9;&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;}&#xD;&#xA;&#xD;&#xA;#ifdef _DEBUG&#xD;&#xA;&#x9;&#x9;&#x9;long sleepDuration = 1000000;&#xD;&#xA;#else&#xD;&#xA;&#x9;&#x9;&#x9;long sleepDuration = capsuleInst.config.maxWaitForReply;&#xD;&#xA;#endif&#xD;&#xA;&#x9;&#x9;&#x9;// Keep the server connection open until a reply is received (or a timeout occurs).&#xD;&#xA;&#x9;&#x9;&#x9;if (thread->trySleep(sleepDuration)) {&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;// Timeout&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;std::ostringstream s;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;s &lt;&lt; &quot;No response from RT application within &quot; &lt;&lt; sleepDuration &lt;&lt; &quot; ms.&quot;;&#xD;&#xA;&#x9;&#x9;&#x9;&#x9;replyStatus(Status::Error, s.str());&#xD;&#xA;&#x9;&#x9;&#x9;}&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;catch (Poco::Exception&amp; exc) {&#xD;&#xA;&#x9;&#x9;&#x9;replyStatus(Status::Error, &quot;Failed to read from socket: &quot; + exc.displayText());&#x9;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;virtual void reply(const std::string&amp; msg) {&#xD;&#xA;&#x9;&#x9;if (hasReplied) {&#xD;&#xA;&#x9;&#x9;&#x9;cout &lt;&lt; &quot;Warning: Multiple reply detected for request. Message: &quot; &lt;&lt; msg &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#x9;&#x9;&#x9;return;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;&#xD;&#xA;&#x9;&#x9;try {&#xD;&#xA;&#x9;&#x9;&#x9;socket().sendBytes(msg.data(), (int) msg.length());&#xD;&#xA;&#x9;&#x9;&#x9;socket().sendBytes(NL.data(), (int) NL.length());&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;catch (Poco::Exception&amp; exc) {&#xD;&#xA;&#x9;&#x9;&#x9;cout &lt;&lt; &quot;Failed to write reply on socket: &quot; &lt;&lt; exc.displayText() &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;if (Thread::current() == 0 || Thread::current()->tid() != thread->tid())&#xD;&#xA;&#x9;&#x9;&#x9;thread->wakeUp();&#xD;&#xA;&#x9;&#x9;hasReplied = true;&#xD;&#xA;&#x9;}&#x9;&#xD;&#xA;&#xD;&#xA;&#x9;virtual void replyStatus(Status status, const std::string&amp; msg, const std::string&amp; result) {&#xD;&#xA;&#x9;&#x9;std::string s = &quot;ok&quot;;&#xD;&#xA;&#x9;&#x9;if (status == Status::Error) {&#xD;&#xA;&#x9;&#x9;&#x9;s = &quot;error&quot;;&#xD;&#xA;&#x9;&#x9;&#x9;cout &lt;&lt; s &lt;&lt; &quot;: &quot; &lt;&lt; msg &lt;&lt; endl &lt;&lt; flush;&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;&#x9;std::string str = &quot;{\&quot;status\&quot;:\&quot;&quot; + s + &quot;\&quot;, \&quot;msg\&quot;:\&quot;&quot; + msg + &quot;\&quot;&quot;;&#xD;&#xA;&#x9;&#x9;if (!result.empty()) {&#xD;&#xA;&#x9;&#x9;&#x9;str.append(&quot;, \&quot;result\&quot;: &quot;);&#xD;&#xA;&#x9;&#x9;&#x9;str.append(result);&#xD;&#xA;&#x9;&#x9;}&#xD;&#xA;&#x9;&#x9;str.append(&quot;}&quot;);&#xD;&#xA;&#x9;&#x9;reply(str);&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;virtual void replyStatus(Status status, const std::string&amp; msg) {&#xD;&#xA;&#x9;&#x9;replyStatus(status, msg, &quot;&quot;);&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;private:&#xD;&#xA;&#x9;TCPServer_Actor&amp; capsuleInst;&#xD;&#xA;};&#xD;&#xA;&#xD;&#xA;class LocalServerConnectionFactory: public TCPServerConnectionFactory&#xD;&#xA;&#x9;/// A factory for LocalServerConnection.&#xD;&#xA;{&#xD;&#xA;public:&#xD;&#xA;&#x9;LocalServerConnectionFactory(TCPServer_Actor&amp; context)&#xD;&#xA;&#x9;&#x9;: capsuleInst(context)&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;&#xD;&#xA;&#x9;TCPServerConnection* createConnection(const StreamSocket&amp; socket)&#xD;&#xA;&#x9;{&#xD;&#xA;&#x9;&#x9;return new LocalServerConnection(socket, capsuleInst);&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;private:&#xD;&#xA;&#x9;TCPServer_Actor&amp; capsuleInst;&#xD;&#xA;};&#xD;&#xA;"/>
     <publicDeclarations xmi:id="_5rMyxO5TEeitL-zKjjNp2A" body="friend class LocalServerConnection;"/>
   </CppPropertySets:GeneralCapsuleProperties>
   <CppPropertySets:GeneralAttributeProperties xmi:id="_5rNZ0O5TEeitL-zKjjNp2A" base_Property="_5rHTOu5TEeitL-zKjjNp2A" nativeType="Poco::Net::TCPServer*"/>
@@ -871,4 +1002,5 @@ catch (Poco::Exception&amp; exc) {&#xD;
     <Implementation xmi:id="_mhCtEPJbEeiUbIS8Ru5zVw" body="#include &lt;RTJsonDecoding.h>&#xD;&#xA;#include &lt;RTObject_class.h>&#xD;&#xA;#include &lt;RTUnknownObject.h>&#xD;&#xA;&#xD;&#xA;#include &quot;Poco/JSON/Parser.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/Object.h&quot;&#xD;&#xA;#include &quot;Poco/JSON/JSONException.h&quot;&#xD;&#xA;#include &quot;Poco/Dynamic/Var.h&quot;&#xD;&#xA;&#xD;&#xA;using Poco::JSON::Parser;&#xD;&#xA;using Poco::JSON::Object;&#xD;&#xA;using Poco::JSON::JSONException;&#xD;&#xA;using Poco::Dynamic::Var;&#xD;&#xA;using namespace std;&#xD;&#xA;&#xD;&#xA;RTJsonDecoding::RTJsonDecoding(const string&amp; data, const string&amp; type)&#xD;&#xA;    : RTDecoding()&#xD;&#xA;    , unget_size(0)&#xD;&#xA;    , input(data)&#xD;&#xA;&#x9;, expectedType(type){&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;RTJsonDecoding::~RTJsonDecoding() {&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get( void ** data, RTObject_class const ** type ) {&#xD;&#xA;&#x9;Parser parser;&#xD;&#xA;&#x9;Var result;&#xD;&#xA;&#x9;try {&#xD;&#xA;&#x9;&#x9;result = parser.parse(input);&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;catch (JSONException e) {&#xD;&#xA;&#x9;&#x9;return 0; // JSON syntax error&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;&#xD;&#xA;&#x9;Object::Ptr object = result.extract&lt;Object::Ptr>();&#xD;&#xA;&#xD;&#xA;&#x9;Var var_data = object->get(&quot;data&quot;);&#xD;&#xA;&#x9;if (var_data.isEmpty()) {&#xD;&#xA;&#x9;&#x9;return 0; // 'data' not specified&#xD;&#xA;&#x9;}&#xD;&#xA;&#xD;&#xA;&#x9;currentDataObj = &amp;var_data;&#xD;&#xA;&#x9;&#x9;&#xD;&#xA;    if( (*type = RTObject_class::lookup(expectedType.c_str())) == (const RTObject_class *)0 ) {&#xD;&#xA;    &#x9;//RTUnknownObject * unknown = getUnknown(type);&#xD;&#xA;&#xD;&#xA;    &#x9;//if( unknown == (RTUnknownObject *)0 )&#xD;&#xA;    &#x9;//&#x9;return 0;&#xD;&#xA;&#xD;&#xA;    &#x9;//*data = (void *)unknown;&#xD;&#xA;    &#x9;//*type = &amp;RTType_RTUnknownObject;&#xD;&#xA;&#xD;&#xA;    &#x9;//return 1;&#xD;&#xA;    &#x9;return 0; // TODO: Support UnknownObject&#xD;&#xA;    }&#xD;&#xA;&#xD;&#xA;    *data = (*type)->allocate();&#xD;&#xA;&#xD;&#xA;    if( *data == (void *)0 )&#xD;&#xA;    &#x9;return 0; // no space?&#xD;&#xA;&#xD;&#xA;    (*type)->init( *data );&#xD;&#xA;&#xD;&#xA;    if( (*type)->decode( *data, this ) == 0 ) {&#xD;&#xA;    &#x9;(*type)->destroy( *data, RTObject_class::DestroyAndDeallocate );&#xD;&#xA;    &#x9;return 0; // Failed to decode data&#xD;&#xA;    }&#xD;&#xA;&#xD;&#xA;    return 1; // Success!&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_int( int &amp; value ) {&#xD;&#xA;&#x9;long tmp = 0;&#xD;&#xA;&#x9;int res = get_long(tmp);&#xD;&#xA;&#x9;value = (int) tmp;&#xD;&#xA;&#x9;return res;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_long( long &amp; value ) {&#xD;&#xA;&#x9;try {&#xD;&#xA;&#x9;&#x9;value = currentDataObj->convert&lt;int>();&#xD;&#xA;&#x9;&#x9;return 1; // Success!&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;catch (Poco::Exception&amp; e) {&#xD;&#xA;&#x9;&#x9;return 0; // Not an integer&#xD;&#xA;&#x9;}&#x9;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_bool( bool &amp; value )&#xD;&#xA;{&#xD;&#xA;&#x9;try {&#xD;&#xA;&#x9;&#x9;value = currentDataObj->convert&lt;bool>();&#xD;&#xA;&#x9;&#x9;return 1; // Success!&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;catch (Poco::Exception&amp; e) {&#xD;&#xA;&#x9;&#x9;return 0; // Not a boolean&#xD;&#xA;&#x9;}&#xD;&#xA;&#x9;&#x9;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_address( void * &amp; address ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_char( char &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_double( double &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_float( float &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_unsignedint( unsigned int &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_unsignedlong( unsigned long &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_unsignedshort( unsigned short &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_unsignedchar( unsigned char &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_short( short &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_uchar( unsigned char &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_unsigned( unsigned &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_ulong( unsigned long &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_ushort( unsigned short &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_opaque( int &amp; value_size, char * &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_string( char * &amp; value ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_enum( int &amp; value, int numElements, const RTFieldDescriptor * element ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_array( void * target, int size, const RTObject_class * element ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_indirect( void * pointer, const RTObject_class * target ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}&#xD;&#xA;&#xD;&#xA;int RTJsonDecoding::get_struct( void * target, const RTObject_class * record ) {&#xD;&#xA;&#x9;return 0;&#xD;&#xA;}"/>
   </CppPropertySets:GeneralArtifactProperties>
   <CppPropertySets:GeneralDependencyProperties xmi:id="_al5PoPLdEeiUbIS8Ru5zVw" base_Dependency="_ZmbWsPLdEeiUbIS8Ru5zVw" kindInHeader="none"/>
+  <CppPropertySets:GeneralParameterProperties xmi:id="_YPeFkHxrEemQvv1wPLSA6g" base_Parameter="_YPbpUXxrEemQvv1wPLSA6g" nativeType="const std::string&amp;"/>
 </xmi:XMI>
