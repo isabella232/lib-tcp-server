@@ -81,6 +81,8 @@ The RTist ASCII encoding of the data object to pass with the event. This encodin
 If the port is replicated (i.e. its multiplicity is > 1) you can specify the index of the port instance you want to send the message to. Omitting the portIndex on a replicated port means that the event will be broadcasted through all port instances. Port indices are zero-based.
 - **priority**:string *[optional]*
 The priority at which the event should be sent. The property defaults to "General". Valid priorities are (from highest to lowest) "Panic", "High", "General", "Low" and "Background". 
+- **incomingEvent**:boolean *[optional]*
+By default an event that is sent to the RTist application will be sent as an outgoing event on the specified port. This means it will be routed via the connector that is connected to that port and eventually be received by another capsule instance at the other end of the connector path. However, sometimes you may instead want the event to be received by the TCPServer capsule instance itself. In this case you should set the "incomingEvent" property to "true" and make sure the TCPServer capsule is prepared for handling the received event.
 
 The response is a JSON object with the following properties:
 
