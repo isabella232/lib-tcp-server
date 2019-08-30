@@ -148,6 +148,8 @@ An array of JSON objects representing the ports of the TCPServer capsule part. T
   - **events**:array
   The names of the events that can be sent through this particular port.
 
+NOTE! This command can also be performed as an HTTP request. For example: http://localhost:9911/getPorts
+
 ## JSON Format of Outgoing Messages
 All messages that are not handled by the TCPServer capsule part are considered to be outgoing messages and will be sent to a remote application. Note that the remote application to which outgoing messages are sent does not have to be the same remote application that sends incoming messages to the RTist application.
 
