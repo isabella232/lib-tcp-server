@@ -58,6 +58,8 @@ The TCP port in the RTist application used for incoming messages.
 The name or IP address of the machine where the remote application (that will receive outgoing messages) runs.
 - **remotePort**:integer
 The TCP port on which the remote application (that will receive outgoing messages) listens.
+- **logToStdOut**:boolean
+By default various log message are printed to StdOut. This can help troubleshooting while developing. Set this property to false to disable such printouts.
 
 
 ## JSON Format of Incoming Messages

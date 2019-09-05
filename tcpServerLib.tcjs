@@ -9,7 +9,7 @@ tc.createTargetProject = true;
 tc.targetProject = '/LibTCPServer_target';
 tc.type = CppTransformType.Library;
 tc.compilationMakeType = topTC.compilationMakeType || MakeType.MS_nmake;
-tc.compileArguments = topTC.compileArguments || '$(DEBUG_TAG) /MD';
+tc.compileArguments = topTC.compileArguments || '$(DEBUG_TAG) /MDd';
 tc.inclusionPaths = topTC.inclusionPaths || [
     pocoLoc + '\\Net\\include',
     pocoLoc + '\\JSON\\include',
