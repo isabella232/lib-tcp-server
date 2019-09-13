@@ -3,6 +3,7 @@ tc.sources = [
     'platform:/resource/LibTcpServer/LibTCPServer.emx#_n2OxwO5SEeitL-zKjjNp2A'
 ];
 tc.type = CppTransformType.ExternalLibrary;
+tc.externalCommand = '';
 tc.inclusionPaths = [
     '$(RSA_RT_HOME)/tcpserver/include'
 ];
@@ -13,4 +14,3 @@ tc.libraries = [
     '$(RSA_RT_HOME)/tcpserver/poco/WinT.x64-VisualC++-15.0/PocoNetmd.lib',
     'Ws2_32.lib'
 ];
-tc.externalCommand = 'dir';
